@@ -11,6 +11,11 @@ Provenance: `RMWM-PROVENANCE-2026-08-07-01`
 
 Status: Initial draft
 
+## Project Definition
+
+- [Product contract](docs/product_contract.md)
+- [Temperature-monitoring example](examples/temperature-monitoring/)
+
 ## Workflow
 
 story
