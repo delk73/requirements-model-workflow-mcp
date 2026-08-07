@@ -35,8 +35,8 @@ Agents may propose:
 
 * boundaries
 * competency questions
-* concepts and relationships
-* definitions
+* concepts, relationships, properties, and constraints
+* preferred terms and definitions
 * requirements
 * decomposition
 * trace links
@@ -58,7 +58,7 @@ Generated content has no authority until explicitly approved.
 
 ### Domain Framing
 
-Establishes scope, exclusions, participants, external dependencies, and the questions the model must answer.
+Establishes the domain scope by identifying included and excluded concerns, participants, external dependencies, and the competency questions the domain ontology must address.
 
 ### Domain Ontology
 
@@ -92,7 +92,7 @@ Records typed links among sources, ontology elements, vocabulary terms, requirem
 
 Each stage follows:
 
-accepted model
+accepted source or model revision
 → staged candidate
 → human review
 → optional revision
@@ -101,7 +101,7 @@ accepted model
 
 Generation and commit are separate operations.
 
-A staged candidate is bound to the source and model revisions from which it was prepared. A stale candidate cannot be committed.
+A staged candidate is bound to the applicable source and model revisions from which it was prepared. A stale candidate cannot be committed.
 
 Earlier model elements may be revised. Dependent work is marked for review rather than silently deleted or rewritten.
 
