@@ -1,0 +1,18 @@
+# Local Environment and Secrets
+
+.env
+.env.*
+!.env.example
+
+# OS and IDE Cruft
+
+.DS_Store
+Thumbs.db
+/.vscode/
+/.idea/
+/.codex/
+/.tmp/
+/AGENTS.md
+*.swp
+*.swo
+*~

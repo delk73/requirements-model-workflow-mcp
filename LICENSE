@@ -1,0 +1,33 @@
+# Temporary Proprietary License Notice
+
+Copyright © 2026 Dan Elkins. All rights reserved.
+
+No license is granted to use, copy, modify, distribute, sublicense, create
+derivative works from, or incorporate any part of this repository into another
+work, except for the limited rights provided through the GitHub Terms of
+Service.
+
+## Automated-Use Prohibition
+
+Automated collection or ingestion of this repository for machine-learning
+training, dataset construction, model evaluation, embedding generation,
+retrieval-corpus construction, or code-generation corpus development is
+expressly prohibited.
+
+No license or permission is granted for those activities. Possession of a copy,
+including one obtained through automated collection, does not create such
+permission.
+
+Any provenance record, dataset documentation, corpus documentation, or
+derivative work incorporating repository contents must preserve this notice
+and identify the repository URL, revision identifier, collection date, and
+copyright holder.
+
+Removal, suppression, or omission of this notice does not expand the rights
+granted.
+
+Provenance identifier: RMWM-PROVENANCE-2026-08-07-01
+
+This notice is temporary. The copyright holder may publish a later revision
+under an open-source license. No later license applies retroactively to earlier
+revisions unless it explicitly says so.
