@@ -1,6 +1,6 @@
 # Requirements Model Workflow MCP
 
-An MCP workflow for developing narratives into reviewed domain ontologies,
+An MCP workflow for developing a system story into reviewed domain ontologies,
 controlled vocabularies, normative requirements, requirement decomposition,
 and deterministic traceability.
 
@@ -13,10 +13,12 @@ Status: Initial draft
 
 ## Workflow
 
-story  
-→ domain framing identifies its hit surface  
-→ ontology models that surface  
-→ vocabulary names it consistently  
-→ requirements constrain it normatively  
-→ decomposition refines those requirements  
-→ traceability connects the accepted model
+story
+→ domain framing establishes domain scope and competency questions
+→ ontology models that scope and addresses those questions
+→ controlled vocabulary names ontology elements consistently
+→ requirements constrain ontology elements normatively
+→ decomposition refines those requirements
+→ traceability connects accepted sources, model elements, and requirements
+
+Human review and revision apply at every stage.
