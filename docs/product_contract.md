@@ -20,6 +20,10 @@ The product is reusable across engineering domains. Precision Replay will serve
 as its first substantial reference case. It is not part of the generic
 architecture.
 
+The workflow produces a reviewed requirements model containing an accepted
+domain ontology, a controlled vocabulary, ontology-linked requirements,
+requirement decomposition, and traceability.
+
 ## Working Principle
 
 The workflow develops one evolving requirements model organized around a
@@ -36,6 +40,19 @@ original story.
 
 The ontology is a first-class workflow artifact. It is reviewed, versioned, and
 approved like the requirements derived through it.
+
+## Minimum Completion and Ontology Invariants
+
+The workflow is complete only when:
+
+* each competency question is addressed, deferred, or excluded
+* each vocabulary entry references an accepted ontology element
+* each requirement references accepted ontology elements
+* required trace links connect accepted elements
+* unresolved items remain explicit
+* ontology element identities remain stable
+* changes to accepted ontology elements identify dependent work that requires
+  review
 
 ## Responsibility Boundary
 
@@ -59,8 +76,11 @@ The MCP owns:
 * approval gates
 * structural validation
 * reference validation
-* accepted-model persistence
+* persistence of the accepted workflow model and workflow state
 * deterministic projections
+
+This persistence does not replace external project artifacts that the project
+identifies as authoritative.
 
 Generated content has no authority until explicitly approved.
 
@@ -125,6 +145,10 @@ Generation and commit are separate operations.
 A staged candidate is bound to the applicable source and model revisions used to
 prepare it. A stale candidate cannot be committed.
 
+A staged candidate may be approved, rejected, replaced, or withdrawn. Only an
+approved and committed candidate becomes part of the accepted model. A
+replacement identifies the candidate it supersedes.
+
 Earlier model elements may be revised. Dependent work is marked for review
 rather than silently deleted or rewritten.
 
@@ -155,7 +179,7 @@ The product is not:
 
 * an autonomous requirements author
 * a general Markdown framework
-* a requirements database
+* a general-purpose requirements database
 * a verification or proof system
 * a certification authority
 * specific to Precision Replay
@@ -166,6 +190,14 @@ The first milestone will exercise the complete workflow with:
 
 1. a small domain-neutral story
 2. the Precision Replay story as the first substantial reference case
+
+The milestone must demonstrate:
+
+* approval and commit of a valid candidate
+* rejection of an invalid reference
+* rejection of a stale candidate
+* revision of an accepted ontology element
+* identification of downstream work that requires review
 
 The milestone succeeds when each case can develop a reviewed model from story
 through traceability without adding domain-specific behavior to the workflow
