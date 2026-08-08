@@ -45,6 +45,7 @@ approved like the requirements derived through it.
 
 The workflow is complete only when:
 
+* every workflow stage has an accepted result
 * each competency question is addressed, deferred, or excluded
 * each vocabulary entry references an accepted ontology element
 * each requirement references accepted ontology elements
@@ -53,6 +54,23 @@ The workflow is complete only when:
 * ontology element identities remain stable
 * changes to accepted ontology elements identify dependent work that requires
   review
+
+An accepted stage result may state that no additional content is required. The
+result shall identify the accepted predecessor elements considered, provide a
+rationale, satisfy all applicable completion invariants, and receive explicit
+human approval. A change to a predecessor requires review of this
+no-additional-content outcome.
+
+Every accepted ontology element shall have a support path to the accepted
+domain framing. The path may pass through other accepted ontology elements and
+shall terminate at an included concern, a participant, an external dependency,
+or a competency question that remains in scope. Circular ontology references
+do not provide sufficient support. An excluded concern or competency question
+cannot support an accepted ontology element unless the domain framing is
+revised and approved. An unresolved boundary question cannot provide accepted
+support unless it is resolved into an accepted in-scope framing element. A
+proposed ontology element without a support path shall be rejected or shall
+cause an approved revision to the domain framing.
 
 ## Responsibility Boundary
 
@@ -123,11 +141,26 @@ that the requirement constrains.
 Relates parent requirements to more specific requirements without prescribing a
 universal set of requirement levels.
 
+Each accepted requirement shall have one or more accepted child requirements or
+an explicit and approved no-further-decomposition outcome. The guarded
+no-additional-content rules above apply to that outcome. Each child requirement
+shall reference at least one accepted parent requirement and accepted ontology
+elements. Decomposition shall contain no cycles. Human review determines
+whether each child preserves and refines its parent's meaning.
+
 ### Traceability
 
 Records typed links among sources, ontology elements, vocabulary terms,
 requirements, decomposition, implementation references, verification
 references, and evidence references.
+
+At workflow completion, each accepted requirement shall have a trace path
+through accepted ontology elements to the accepted domain framing. Each child
+requirement shall trace to an accepted parent requirement.
+
+Implementation, verification, and evidence links are optional. Each link that
+exists shall connect an accepted workflow element to a structurally valid
+external reference.
 
 ## Review Lifecycle
 
@@ -184,14 +217,12 @@ The product is not:
 * a certification authority
 * specific to Precision Replay
 
-## First Milestone
+## Milestones
 
-The first milestone will exercise the complete workflow with:
+### Milestone 1: Domain-Neutral Walking Skeleton
 
-1. a small domain-neutral story
-2. the Precision Replay story as the first substantial reference case
-
-The milestone must demonstrate:
+The temperature-monitoring case shall exercise the complete workflow. It must
+demonstrate:
 
 * approval and commit of a valid candidate
 * rejection of an invalid reference
@@ -199,6 +230,16 @@ The milestone must demonstrate:
 * revision of an accepted ontology element
 * identification of downstream work that requires review
 
-The milestone succeeds when each case can develop a reviewed model from story
+The milestone succeeds when the case can develop a reviewed model from story
 through traceability without adding domain-specific behavior to the workflow
 core.
+
+### Milestone 2: Precision Replay Reference Validation
+
+Precision Replay shall complete the same workflow and preserve the generic
+workflow stages. The workflow core shall contain no Replay-specific behavior.
+
+This milestone shall evaluate whether the more complex domain exposes generic
+limitations and record the result.
+
+The product does not establish reusable adequacy until both milestones pass.
