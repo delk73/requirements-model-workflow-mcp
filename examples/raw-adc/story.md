@@ -1,3 +1,10 @@
+---
+rmwm:
+  schema: "artifact/v1"
+  id: "raw-adc-story"
+  type: "system_story"
+---
+
 # Raw ADC Capture Story
 
 A DRV425EVM produces an analog output in response to a sensed magnetic field. An ADC capture system samples that output and produces raw ADC records.

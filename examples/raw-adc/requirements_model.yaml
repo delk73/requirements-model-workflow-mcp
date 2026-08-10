@@ -1,0 +1,41 @@
+schema: "rmwm/requirements-model/v1"
+model_id: "raw-adc"
+
+artifacts:
+  raw-adc-story:
+    type: "system_story"
+    representation:
+      path: "story.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted:
+      revision: "sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"
+      content:
+        digest: "sha256:88f778b64cdca9bee76ec50fe7fb4d99a787617bf0d7cf6cf301ad2cac2477a4"
+        size: 532
+      sources: {}
+
+  raw-adc-domain-framing:
+    type: "domain_framing"
+    representation:
+      path: "domain_framing.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted:
+      revision: "sha256:be43571ec9938978d8e34506b3828571aaa7d4e7da515f61bc5ea21c7b264636"
+      content:
+        digest: "sha256:4cd90588e2b4129e93c570a0b438d0a47dbc27cdaec6564b0e88284d3335213e"
+        size: 3109
+      sources:
+        raw-adc-story: "sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"
+
+  raw-adc-domain-ontology:
+    type: "domain_ontology"
+    representation:
+      path: "domain_ontology.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted: null

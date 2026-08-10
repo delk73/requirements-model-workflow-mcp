@@ -100,6 +100,105 @@ The MCP owns:
 This persistence does not replace external project artifacts that the project
 identifies as authoritative.
 
+## Managed-Artifact State Contract
+
+The body of an artifact owns domain meaning. Artifact frontmatter owns stable
+artifact identity and type. The requirements-model manifest owns accepted
+revisions and source bindings. The MCP owns active stage and staged-candidate
+lifecycle state. Deterministic calculation owns modified, stale,
+review-required, and superseded state.
+
+Managed artifact frontmatter has this closed structure:
+
+```yaml
+---
+rmwm:
+  schema: "artifact/v1"
+  id: "<artifact-id>"
+  type: "<artifact-type>"
+---
+```
+
+The `rmwm` object is closed; unknown fields are invalid. Controlled artifact
+types are `system_story`, `domain_framing`, `domain_ontology`,
+`controlled_vocabulary`, `requirements`, `requirement_decomposition`, and
+`traceability`.
+
+The requirements-model manifest has the closed schema
+`rmwm/requirements-model/v1`. Each artifact has exactly one representation
+location. Repository-local paths are normalized relative to the manifest and
+cannot use `..`, absolute roots, or symlink indirection. A future external
+artifact may use `uri` instead of `path`; no external artifact is used here.
+
+Content identity is the SHA-256 digest and exact byte count of the complete
+file, including frontmatter. Content is UTF-8 without a BOM and declares its
+line endings.
+
+A revision handle identifies content together with its accepted source
+revisions. It is calculated deterministically from the revision schema,
+model ID, artifact ID, artifact type, workflow stage, complete content digest,
+source count, and source artifact ID plus accepted revision pairs. Strings are
+encoded as an unsigned 64-bit big-endian UTF-8 byte length followed by their
+UTF-8 bytes; source count is an unsigned 64-bit big-endian integer; source
+pairs are sorted lexicographically by source artifact ID. The concatenated
+bytes are hashed with SHA-256 using revision schema `rmwm-revision-v1`.
+
+Derived state is not stored in artifact frontmatter:
+
+* `draft`: `accepted` is null.
+* `accepted`: file identity and type match the manifest, and exact bytes match
+  the accepted content descriptor.
+* `modified`: current file bytes differ from the accepted content descriptor.
+* `staged`: matching staged-candidate state exists in MCP persistence.
+* `stale`: the accepted target revision or a bound source revision changed
+  after staging.
+* `review_required`: an accepted artifact's bound source revision differs
+  from the current accepted source revision.
+* `superseded`: a later accepted revision replaced an earlier accepted revision
+  for the same artifact.
+
+### Candidate Contract
+
+The future MCP behavior is:
+
+1. The agent supplies the candidate body.
+2. The MCP owns and validates controlled frontmatter.
+3. The MCP applies the declared encoding and line endings.
+4. The MCP constructs the exact prospective artifact bytes.
+5. The MCP calculates the content digest and revision handle.
+6. The staged candidate binds the model ID, artifact ID, artifact type,
+   workflow stage, current accepted target revision if one exists, exact
+   prospective artifact bytes, and accepted source revisions.
+7. Commit rejects a changed target or source.
+8. Commit writes the exact bytes that were staged.
+
+Generation and commit remain separate operations.
+
+### Transaction Contract
+
+Commit is one logical transaction:
+
+1. Lock the requirements model.
+2. Re-read and validate the manifest and accepted artifacts.
+3. Revalidate the candidate handle, target base revision, and source revisions.
+4. Prepare the new artifact and manifest in temporary files.
+5. Preserve recoverable copies of the old artifact and manifest.
+6. Persist a recovery journal containing target paths and old and new
+   descriptors.
+7. Persist the temporary files.
+8. Replace the artifact.
+9. Replace the manifest last.
+10. Treat manifest replacement as the acceptance point.
+11. Clear staged-candidate state.
+12. Remove recovery files only after completion.
+
+Recovery rules:
+
+* If the old manifest remains, restore the old artifact.
+* If the new manifest is present and valid, retain the new artifact and finish
+  clearing candidate state.
+* For any unresolved digest or identity mismatch, stop without guessing.
+
 Generated content has no authority until explicitly approved.
 
 ## Workflow
@@ -173,6 +272,8 @@ accepted source or model revision
 → explicit approval and commit
 → accepted model revision
 
+A stage may produce an accepted revision that permits work on a later stage. Acceptance does not close the stage. Findings from later stages may require a new revision of an earlier stage and review of dependent work.
+
 Generation and commit are separate operations.
 
 A staged candidate is bound to the applicable source and model revisions used to
@@ -219,9 +320,9 @@ The product is not:
 
 ## Milestones
 
-### Milestone 1: Domain-Neutral Walking Skeleton
+### Milestone 1: Raw-ADC Walking Skeleton
 
-The temperature-monitoring case shall exercise the complete workflow. It must
+The raw-ADC capture example shall exercise the complete workflow. It must
 demonstrate:
 
 * approval and commit of a valid candidate
@@ -230,9 +331,9 @@ demonstrate:
 * revision of an accepted ontology element
 * identification of downstream work that requires review
 
-The milestone succeeds when the case can develop a reviewed model from story
-through traceability without adding domain-specific behavior to the workflow
-core.
+The milestone succeeds when the case can develop a reviewed model from the
+raw-ADC story through traceability without adding domain-specific behavior to
+the workflow core.
 
 ### Milestone 2: Precision Replay Reference Validation
 

@@ -1,3 +1,10 @@
+---
+rmwm:
+  schema: "artifact/v1"
+  id: "raw-adc-domain-framing"
+  type: "domain_framing"
+---
+
 # Raw ADC Capture Domain Framing
 
 ## Included Concerns

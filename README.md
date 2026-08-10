@@ -30,3 +30,8 @@ story provides the source narrative
 Human review and revision apply throughout the workflow.
 
 A stage may produce an accepted revision that permits work on a later stage. Acceptance does not close the stage. Findings from later stages may require a new revision of an earlier stage and review of dependent work.
+
+Workflow-managed artifacts use controlled frontmatter for stable artifact
+identity and type. The requirements-model manifest identifies accepted
+revisions and source bindings. Staged-candidate state remains owned by the
+MCP.
