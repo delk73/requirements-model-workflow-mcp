@@ -61,7 +61,6 @@ The behavior and implementation of these external dependencies are outside this 
 * What event begins and ends a capture?
 * What information must a raw ADC record contain?
 * What gives a raw ADC record its identity?
-* Does each captured sample produce exactly one raw ADC record?
 * Must a raw ADC record preserve the captured ADC code without modification?
 * What makes a raw ADC record acceptable or rejectable?
 * Is each raw ADC record evaluated only once?

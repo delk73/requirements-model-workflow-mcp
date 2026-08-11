@@ -7,9 +7,9 @@ This example exercises the Requirements Model Workflow using the DRV425EVM raw-A
 * [System story](story.md) provides the source narrative.
 * [Domain framing](domain_framing.md) establishes the domain scope and competency questions.
 * [Domain ontology](domain_ontology.md) is a draft ontology probe and is not accepted.
-* [Ontology probe 1 review](reviews/ontology-probe-01.md) records the manual review of competency question 1.
 * [Requirements-model manifest](requirements_model.yaml) identifies accepted revisions and source bindings.
 
-## Current Step
+## Current Stage
 
-The current step tests competency question 1 against the draft ontology probe.
+The domain ontology is tested and revised against the domain-framing competency
+questions.
