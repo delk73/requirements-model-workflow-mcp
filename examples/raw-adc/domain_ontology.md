@@ -19,7 +19,7 @@ Which raw ADC records were produced during a capture?
 | --- | --- | --- |
 | Capture | Record type | Candidate grouping for raw ADC sampling |
 | Raw ADC Record | Record type | The raw record produced from a captured ADC sample |
-| Acquisition Context | Record type | The shared information needed to interpret a capture |
+| Acquisition Context | Record type | Information needed to interpret acquired raw ADC data |
 | Captured Sample | Record type | One ADC sample that results in a raw ADC record |
 
 ### Properties
@@ -29,7 +29,9 @@ Which raw ADC records were produced during a capture?
 | Capture | Capture identity | Distinguishes one capture from another |
 | Raw ADC Record | Record identity | Distinguishes records produced during a capture |
 | Raw ADC Record | Raw ADC value | Preserves the captured ADC code |
-| Acquisition Context | Sampling timing definition | Defines the timing used to interpret the capture |
+| Raw ADC Record | Acceptance status | States whether the record was accepted or rejected |
+| Acquisition Context | Context identity | Distinguishes one acquisition context from another |
+| Acquisition Context | Sampling timing definition | Defines timing used to interpret acquired raw ADC data |
 | Captured Sample | Sample identity | Distinguishes one captured sample from another |
 
 The representation of each property remains unresolved.
@@ -41,11 +43,18 @@ The representation of each property remains unresolved.
 | Capture | produces | Raw ADC Record |
 | Capture | uses | Acquisition Context |
 | Raw ADC Record | results from | Captured Sample |
+| Raw ADC Record | has | Acquisition Context |
 
 ### Constraints
 
 * Each captured sample results in exactly one raw ADC record.
 * Each raw ADC record results from exactly one captured sample.
+* Each raw ADC record has an acceptance status.
+* Acceptance status is either `accepted` or `rejected`.
+* An acquisition context applies either to a capture or to one or more raw ADC records.
+* Each accepted raw ADC record is interpreted using the acquisition context of its capture.
+* An accepted raw ADC record may also have record-level acquisition context.
+* The effective acquisition context for an accepted raw ADC record combines its capture-level context with any record-level context.
 
 ### Probe Propositions
 
@@ -53,8 +62,12 @@ The representation of each property remains unresolved.
   The event that begins and ends a capture remains unresolved.
 * The probe proposes that each raw ADC record belongs to the capture that
   produced it and that a capture may produce multiple raw ADC records.
-* The probe provisionally associates acquisition context with a capture. The
-  required scope of that context remains unresolved.
+* The probe represents acquisition context in capture-level and record-level
+  layers. The information assigned to each layer and the rules for combining
+  the layers remain unresolved.
+* The probe represents the accepted-or-rejected result as the acceptance status
+  of a raw ADC record. Whether the underlying evaluation may be repeated or
+  revisited remains unresolved.
 * The probe does not specify whether sampling is uniform.
 
 ### Support Paths
@@ -63,9 +76,18 @@ The representation of each property remains unresolved.
 | --- | --- |
 | Capture | Competency question: “Which raw ADC records were produced during a capture?” |
 | Raw ADC Record | Story: “An ADC capture system … produces raw ADC records.” |
+| Raw ADC Record — Acceptance status | Story: for each captured sample, the system determines whether to accept or reject the resulting raw ADC record. |
 | Acquisition Context | Story: accepted records are retained with the acquisition context needed to interpret them. |
 | Capture produces Raw ADC Record | Story: the system produces raw ADC records from captured samples. |
-| Capture uses Acquisition Context | Probe proposition: acquisition context is associated with a capture for testing; the story directly supports retaining accepted records with acquisition context. |
+| Capture uses Acquisition Context | Domain framing: acquisition context uses capture-level and record-level layers. |
+| Acquisition Context — Context identity | Competency question 3 requires applicable acquisition context to be distinguishable. |
+| Raw ADC Record has Acquisition Context | Domain framing: acquisition context includes a record-level layer. |
+| Acquisition Context applies to Capture or Raw ADC Record | Domain framing: acquisition context uses capture-level and record-level layers. |
+| Capture-level Acquisition Context applies to accepted Raw ADC Record | Story: accepted raw ADC records are retained with the acquisition context needed to interpret them. |
+| Accepted Raw ADC Record may have record-level Acquisition Context | Domain framing: acquisition context includes a record-level layer. |
+| Effective Acquisition Context combines capture and record layers | Domain framing: acquisition context is applied in capture-level and record-level layers. |
+| Each Raw ADC Record has Acceptance status | Story: the system makes an accept-or-reject determination for each resulting raw ADC record. |
+| Acceptance status is accepted or rejected | Story: the permitted outcomes are accept and reject. |
 | Captured Sample | Story: “For each captured sample … the resulting raw ADC record.” |
 | Captured Sample — Sample identity | Competency question 2 requires the source sample of each raw ADC record to be distinguishable. |
 | Raw ADC Record results from Captured Sample | Story: each captured sample has a resulting raw ADC record. |

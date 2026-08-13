@@ -15,6 +15,7 @@ rmwm:
 * Determining whether each raw ADC record is accepted or rejected.
 * Retaining accepted raw ADC records.
 * Retaining the acquisition context needed to interpret accepted raw ADC records.
+* Applying acquisition context in capture-level and record-level layers.
 * Keeping rejected raw ADC records distinguishable from accepted raw ADC records.
 
 ## Excluded Concerns
@@ -66,7 +67,9 @@ The behavior and implementation of these external dependencies are outside this 
 * Is each raw ADC record evaluated only once?
 * What information about a rejected raw ADC record must be retained?
 * What acquisition context is required to interpret an accepted raw ADC record?
-* Does acquisition context apply to one record, a group of records, or the complete capture?
+* Which acquisition context applies to the entire capture, and which applies to an individual raw ADC record?
+* How are capture-level and record-level acquisition context combined when interpreting a raw ADC record?
+* May one record-level acquisition context apply to a group of raw ADC records?
 * What does retaining a raw ADC record mean at this boundary?
 * Must capture order or timing be retained?
 * How are duplicated, malformed, missing, or out-of-order samples or records handled?
