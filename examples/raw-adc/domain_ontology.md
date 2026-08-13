@@ -51,6 +51,7 @@ The representation of each property remains unresolved.
 * Each raw ADC record results from exactly one captured sample.
 * Each raw ADC record has an acceptance status.
 * Acceptance status is either `accepted` or `rejected`.
+* Each accepted raw ADC record is retained.
 * An acquisition context applies either to a capture or to one or more raw ADC records.
 * Each accepted raw ADC record is interpreted using the acquisition context of its capture.
 * An accepted raw ADC record may also have record-level acquisition context.
@@ -88,6 +89,7 @@ The representation of each property remains unresolved.
 | Effective Acquisition Context combines capture and record layers | Domain framing: acquisition context is applied in capture-level and record-level layers. |
 | Each Raw ADC Record has Acceptance status | Story: the system makes an accept-or-reject determination for each resulting raw ADC record. |
 | Acceptance status is accepted or rejected | Story: the permitted outcomes are accept and reject. |
+| Each accepted Raw ADC Record is retained | Story: accepted raw ADC records are retained together with the acquisition context needed to interpret them. |
 | Captured Sample | Story: “For each captured sample … the resulting raw ADC record.” |
 | Captured Sample — Sample identity | Competency question 2 requires the source sample of each raw ADC record to be distinguishable. |
 | Raw ADC Record results from Captured Sample | Story: each captured sample has a resulting raw ADC record. |
