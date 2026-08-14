@@ -52,10 +52,12 @@ The behavior and implementation of these external dependencies are outside this 
 
 1. Which raw ADC records were produced during a capture?
 2. From which captured samples were the raw ADC records produced?
-3. What acquisition context applies to each accepted raw ADC record?
+3. What retained acquisition context applies to each accepted raw ADC record?
 4. For each raw ADC record, was it accepted or rejected?
 5. Which accepted raw ADC records were retained?
 6. How can rejected raw ADC records be distinguished from accepted raw ADC records?
+7. Which DRV425EVM analog output was received during a capture?
+8. Which captured samples were produced by sampling that analog output?
 
 ## Unresolved Boundary Questions
 
