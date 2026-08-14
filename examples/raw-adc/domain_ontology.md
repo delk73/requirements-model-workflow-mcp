@@ -49,6 +49,7 @@ The representation of each property remains unresolved.
 | Raw ADC Record | has | Acquisition Context |
 | DRV425EVM | produces | Analog Output |
 | Capture | receives | Analog Output |
+| Analog Output | is sampled to produce | Captured Sample |
 
 ### Constraints
 
@@ -111,3 +112,4 @@ The representation of each property remains unresolved.
 | DRV425EVM produces Analog Output | Story: “A DRV425EVM produces an analog output …” |
 | Capture receives Analog Output | Domain framing included concern: “Receiving the analog output produced by the DRV425EVM.” Competency question 7: “Which DRV425EVM analog output was received during a capture?” |
 | Each Analog Output received during a Capture is produced by a DRV425EVM | Story: the DRV425EVM produces an analog output. Domain framing: the analog output produced by the DRV425EVM is received. |
+| Analog Output is sampled to produce Captured Sample | Story: “An ADC capture system samples that output …” Domain framing included concern: “Sampling the analog output with an ADC.” Competency question 8: “Which captured samples were produced by sampling that analog output?” |
