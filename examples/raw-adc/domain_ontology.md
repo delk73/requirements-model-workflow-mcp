@@ -55,6 +55,7 @@ The representation of each property remains unresolved.
 
 * Each captured sample results in exactly one raw ADC record.
 * Each raw ADC record results from exactly one captured sample.
+* Each raw ADC record is produced during exactly one capture.
 * Each raw ADC record has an acceptance status.
 * Acceptance status is either `accepted` or `rejected`.
 * Each accepted raw ADC record is retained.
@@ -62,6 +63,7 @@ The representation of each property remains unresolved.
 * Each accepted raw ADC record is interpreted using the acquisition context of its capture.
 * An accepted raw ADC record may also have record-level acquisition context.
 * The effective acquisition context for an accepted raw ADC record combines its capture-level context with any record-level context.
+* Each capture-level or record-level Acquisition Context used to determine the effective Acquisition Context for an accepted Raw ADC Record is retained.
 * Each analog output received during a capture is produced by a DRV425EVM.
 
 ### Probe Propositions
@@ -106,6 +108,8 @@ The representation of each property remains unresolved.
 | Raw ADC Record results from Captured Sample | Story: each captured sample has a resulting raw ADC record. |
 | One captured sample results in exactly one Raw ADC Record | Story: “For each captured sample … the resulting raw ADC record.” |
 | Each Raw ADC Record results from exactly one Captured Sample | Story: the system produces raw ADC records from captured samples and refers to the resulting raw ADC record for each captured sample. |
+| Each Raw ADC Record is produced during exactly one Capture | Competency question 1 requires records to be identified during a capture. Probe proposition: each raw ADC record belongs to the capture that produced it. |
+| Applicable Acquisition Context for an accepted Raw ADC Record is retained | Story: accepted raw ADC records are retained together with the acquisition context needed to interpret them. Domain framing: retaining the acquisition context needed to interpret accepted raw ADC records. |
 | DRV425EVM | Story: “A DRV425EVM produces an analog output …” |
 | Analog Output | Story: “A DRV425EVM produces an analog output … An ADC capture system samples that output …” |
 | Analog Output — Analog output identity | Competency question 7 requires the received analog output to be distinguishable. |
