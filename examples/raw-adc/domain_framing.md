@@ -16,6 +16,11 @@ rmwm:
 * Retaining accepted raw ADC records.
 * Retaining the acquisition context needed to interpret accepted raw ADC records.
 * Applying acquisition context in capture-level and record-level layers.
+* Retaining the order of captured samples.
+* Retaining the capture-level timing configuration or timing basis needed to interpret captured samples.
+* Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.
+* Distinguishing sample timing derived from capture-level timing and sample order
+  from timing supported by sample-level observations.
 * Keeping rejected raw ADC records distinguishable from accepted raw ADC records.
 
 ## Excluded Concerns
@@ -58,6 +63,11 @@ The behavior and implementation of these external dependencies are outside this 
 6. How can rejected raw ADC records be distinguished from accepted raw ADC records?
 7. Which DRV425EVM analog output was received during a capture?
 8. Which captured samples were produced by sampling that analog output?
+9. In what order were captured samples produced during a capture?
+10. What capture-level timing configuration or timing basis applies to the captured samples?
+11. What sample-level timing observations, if any, apply to each captured sample?
+12. For each captured sample, what establishes its timing: capture-level timing
+  and sample order, a sample-level timing observation, or both?
 
 ## Unresolved Boundary Questions
 
@@ -73,5 +83,10 @@ The behavior and implementation of these external dependencies are outside this 
 * How are capture-level and record-level acquisition context combined when interpreting a raw ADC record?
 * May one record-level acquisition context apply to a group of raw ADC records?
 * What does retaining a raw ADC record mean at this boundary?
-* Must capture order or timing be retained?
+* What establishes captured-sample order?
+* What information constitutes the capture-level timing configuration or timing basis?
+* When may sample timing be derived from capture-level timing and sample order?
+* What event does a sample-level timing observation represent?
+* What time reference, resolution, precision, or uncertainty applies to a timing observation?
+* How are missing samples or gaps represented in capture order?
 * How are duplicated, malformed, missing, or out-of-order samples or records handled?

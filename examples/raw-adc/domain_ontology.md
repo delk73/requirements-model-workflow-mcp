@@ -30,10 +30,8 @@ Which raw ADC records were produced during a capture?
 | --- | --- | --- |
 | Capture | Capture identity | Distinguishes one capture from another |
 | Raw ADC Record | Record identity | Distinguishes records produced during a capture |
-| Raw ADC Record | Raw ADC value | Preserves the captured ADC code |
 | Raw ADC Record | Acceptance status | States whether the record was accepted or rejected |
 | Acquisition Context | Context identity | Distinguishes one acquisition context from another |
-| Acquisition Context | Sampling timing definition | Defines timing used to interpret acquired raw ADC data |
 | Captured Sample | Sample identity | Distinguishes one captured sample from another |
 | Analog Output | Analog output identity | Distinguishes one analog output from another |
 
@@ -56,14 +54,14 @@ The representation of each property remains unresolved.
 * Each captured sample results in exactly one raw ADC record.
 * Each raw ADC record results from exactly one captured sample.
 * Each raw ADC record is produced during exactly one capture.
-* Each raw ADC record has an acceptance status.
-* Acceptance status is either `accepted` or `rejected`.
+* Each raw ADC record has exactly one acceptance status, either `accepted` or
+  `rejected`.
 * Each accepted raw ADC record is retained.
-* An acquisition context applies either to a capture or to one or more raw ADC records.
-* Each accepted raw ADC record is interpreted using the acquisition context of its capture.
-* An accepted raw ADC record may also have record-level acquisition context.
-* The effective acquisition context for an accepted raw ADC record combines its capture-level context with any record-level context.
-* Each capture-level or record-level Acquisition Context used to determine the effective Acquisition Context for an accepted Raw ADC Record is retained.
+* Each Acquisition Context used by a Capture is capture-level context for the Raw
+  ADC Records produced during that Capture.
+* Each Acquisition Context that a Raw ADC Record has is record-level context for
+  that Raw ADC Record.
+* Each Acquisition Context applicable to an accepted Raw ADC Record is retained.
 * Each analog output received during a capture is produced by a DRV425EVM.
 
 ### Probe Propositions
@@ -73,8 +71,9 @@ The representation of each property remains unresolved.
 * The probe proposes that each raw ADC record belongs to the capture that
   produced it and that a capture may produce multiple raw ADC records.
 * The probe represents acquisition context in capture-level and record-level
-  layers. The information assigned to each layer and the rules for combining
-  the layers remain unresolved.
+  layers. Which information belongs at each layer, how the layers are combined,
+  how conflicts between layers are resolved, and whether one record-level
+  context may apply to multiple records remain unresolved.
 * The probe represents the accepted-or-rejected result as the acceptance status
   of a raw ADC record. Whether the underlying evaluation may be repeated or
   revisited remains unresolved.
@@ -93,23 +92,20 @@ The representation of each property remains unresolved.
 | Raw ADC Record — Acceptance status | Story: for each captured sample, the system determines whether to accept or reject the resulting raw ADC record. |
 | Acquisition Context | Story: accepted records are retained with the acquisition context needed to interpret them. |
 | Capture produces Raw ADC Record | Story: the system produces raw ADC records from captured samples. |
-| Capture uses Acquisition Context | Domain framing: acquisition context uses capture-level and record-level layers. |
+| Capture uses Acquisition Context | Domain framing: acquisition context uses capture-level and record-level layers. Probe proposition: the information assigned to each layer remains unresolved. |
 | Acquisition Context — Context identity | Competency question 3 requires applicable acquisition context to be distinguishable. |
-| Raw ADC Record has Acquisition Context | Domain framing: acquisition context includes a record-level layer. |
-| Acquisition Context applies to Capture or Raw ADC Record | Domain framing: acquisition context uses capture-level and record-level layers. |
-| Capture-level Acquisition Context applies to accepted Raw ADC Record | Story: accepted raw ADC records are retained with the acquisition context needed to interpret them. |
-| Accepted Raw ADC Record may have record-level Acquisition Context | Domain framing: acquisition context includes a record-level layer. |
-| Effective Acquisition Context combines capture and record layers | Domain framing: acquisition context is applied in capture-level and record-level layers. |
-| Each Raw ADC Record has Acceptance status | Story: the system makes an accept-or-reject determination for each resulting raw ADC record. |
-| Acceptance status is accepted or rejected | Story: the permitted outcomes are accept and reject. |
+| Raw ADC Record has Acquisition Context | Domain framing: acquisition context uses capture-level and record-level layers. Probe proposition: whether one record-level context may apply to multiple records remains unresolved. |
+| Each Raw ADC Record has exactly one Acceptance status, either accepted or rejected | Direct story support: for each captured sample, the system determines whether to accept or reject the resulting raw ADC record. |
 | Each accepted Raw ADC Record is retained | Story: accepted raw ADC records are retained together with the acquisition context needed to interpret them. |
+| Each Acquisition Context used by a Capture is capture-level context for the Raw ADC Records produced during that Capture | Domain framing support: acquisition context is applied in capture-level and record-level layers. Competency-question support: question 3 asks what retained acquisition context applies to each accepted raw ADC record. Probe proposition: which information belongs at each layer remains unresolved. |
+| Each Acquisition Context that a Raw ADC Record has is record-level context for that Raw ADC Record | Domain framing support: acquisition context is applied in capture-level and record-level layers. Competency-question support: question 3 asks what retained acquisition context applies to each accepted raw ADC record. Probe proposition: whether one record-level context may apply to multiple records remains unresolved. |
+| Each Acquisition Context applicable to an accepted Raw ADC Record is retained | Direct story support: accepted raw ADC records are retained together with the acquisition context needed to interpret them. Domain framing support: retaining the acquisition context needed to interpret accepted raw ADC records. Competency-question support: question 3 asks what retained acquisition context applies to each accepted raw ADC record. Probe proposition: how layers are combined and conflicts between layers are resolved remain unresolved. |
 | Captured Sample | Story: “For each captured sample … the resulting raw ADC record.” |
 | Captured Sample — Sample identity | Competency question 2 requires the source sample of each raw ADC record to be distinguishable. |
 | Raw ADC Record results from Captured Sample | Story: each captured sample has a resulting raw ADC record. |
 | One captured sample results in exactly one Raw ADC Record | Story: “For each captured sample … the resulting raw ADC record.” |
 | Each Raw ADC Record results from exactly one Captured Sample | Story: the system produces raw ADC records from captured samples and refers to the resulting raw ADC record for each captured sample. |
 | Each Raw ADC Record is produced during exactly one Capture | Competency question 1 requires records to be identified during a capture. Probe proposition: each raw ADC record belongs to the capture that produced it. |
-| Applicable Acquisition Context for an accepted Raw ADC Record is retained | Story: accepted raw ADC records are retained together with the acquisition context needed to interpret them. Domain framing: retaining the acquisition context needed to interpret accepted raw ADC records. |
 | DRV425EVM | Story: “A DRV425EVM produces an analog output …” |
 | Analog Output | Story: “A DRV425EVM produces an analog output … An ADC capture system samples that output …” |
 | Analog Output — Analog output identity | Competency question 7 requires the received analog output to be distinguishable. |
