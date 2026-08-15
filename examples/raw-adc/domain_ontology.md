@@ -33,6 +33,7 @@ Which raw ADC records were produced during a capture?
 | Raw ADC Record | Acceptance status | States whether the record was accepted or rejected |
 | Acquisition Context | Context identity | Distinguishes one acquisition context from another |
 | Captured Sample | Sample identity | Distinguishes one captured sample from another |
+| Captured Sample | Capture order position | Establishes the sample’s relative position within its capture |
 | Analog Output | Analog output identity | Distinguishes one analog output from another |
 
 The representation of each property remains unresolved.
@@ -56,6 +57,9 @@ The representation of each property remains unresolved.
 * Each raw ADC record is produced during exactly one capture.
 * Each raw ADC record has exactly one acceptance status, either `accepted` or
   `rejected`.
+* Each captured sample has exactly one capture order position within its capture.
+* No two captured samples in the same capture have the same capture order position.
+* Capture order positions within a capture establish a strict total order.
 * Each accepted raw ADC record is retained.
 * Each Acquisition Context used by a Capture is capture-level context for the Raw
   ADC Records produced during that Capture.
@@ -74,6 +78,10 @@ The representation of each property remains unresolved.
   layers. Which information belongs at each layer, how the layers are combined,
   how conflicts between layers are resolved, and whether one record-level
   context may apply to multiple records remain unresolved.
+* The probe uses capture order position to represent the relative order of
+  captured samples within a capture. How an order position is represented,
+  whether positions must be contiguous, and how missing samples or gaps appear
+  in the order remain unresolved.
 * The probe represents the accepted-or-rejected result as the acceptance status
   of a raw ADC record. Whether the underlying evaluation may be repeated or
   revisited remains unresolved.
@@ -102,9 +110,13 @@ The representation of each property remains unresolved.
 | Each Acquisition Context applicable to an accepted Raw ADC Record is retained | Direct story support: accepted raw ADC records are retained together with the acquisition context needed to interpret them. Domain framing support: retaining the acquisition context needed to interpret accepted raw ADC records. Competency-question support: question 3 asks what retained acquisition context applies to each accepted raw ADC record. Probe proposition: how layers are combined and conflicts between layers are resolved remain unresolved. |
 | Captured Sample | Story: “For each captured sample … the resulting raw ADC record.” |
 | Captured Sample — Sample identity | Competency question 2 requires the source sample of each raw ADC record to be distinguishable. |
+| Captured Sample — Capture order position | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
 | Raw ADC Record results from Captured Sample | Story: each captured sample has a resulting raw ADC record. |
 | One captured sample results in exactly one Raw ADC Record | Story: “For each captured sample … the resulting raw ADC record.” |
 | Each Raw ADC Record results from exactly one Captured Sample | Story: the system produces raw ADC records from captured samples and refers to the resulting raw ADC record for each captured sample. |
+| Each captured sample has exactly one capture order position within its capture | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
+| No two captured samples in the same capture have the same capture order position | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
+| Capture order positions within a capture establish a strict total order | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
 | Each Raw ADC Record is produced during exactly one Capture | Competency question 1 requires records to be identified during a capture. Probe proposition: each raw ADC record belongs to the capture that produced it. |
 | DRV425EVM | Story: “A DRV425EVM produces an analog output …” |
 | Analog Output | Story: “A DRV425EVM produces an analog output … An ADC capture system samples that output …” |
