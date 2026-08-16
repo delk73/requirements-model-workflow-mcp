@@ -19,8 +19,8 @@ rmwm:
 * Retaining the order of captured samples.
 * Retaining the capture-level timing configuration or timing basis needed to interpret captured samples.
 * Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.
-* Distinguishing sample timing derived from capture-level timing and sample order
-  from timing supported by sample-level observations.
+* Keeping capture timing bases, sample order, and sample timing observations
+  distinguishable.
 * Keeping rejected raw ADC records distinguishable from accepted raw ADC records.
 
 ## Excluded Concerns
@@ -66,8 +66,9 @@ The behavior and implementation of these external dependencies are outside this 
 9. In what order were captured samples produced during a capture?
 10. What capture-level timing configuration or timing basis applies to the captured samples?
 11. What sample-level timing observations, if any, apply to each captured sample?
-12. For each captured sample, what establishes its timing: capture-level timing
-  and sample order, a sample-level timing observation, or both?
+12. For each captured sample, which timing information is retained: its capture
+  timing basis and order position only, or those plus one or more sample timing
+  observations?
 
 ## Unresolved Boundary Questions
 

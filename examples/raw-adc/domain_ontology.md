@@ -66,6 +66,7 @@ The representation of each property remains unresolved.
 * Each captured sample has exactly one capture order position within its capture.
 * No two captured samples in the same capture have the same capture order position.
 * Capture order positions within a capture establish a strict total order.
+* The Capture order position of each Captured Sample is retained.
 * Each Captured Sample has zero or more Sample Timing Observations.
 * Each Sample Timing Observation belongs to exactly one Captured Sample.
 * Each accepted raw ADC record is retained.
@@ -73,6 +74,7 @@ The representation of each property remains unresolved.
   ADC Records produced during that Capture.
 * Every Capture has at least one Capture Timing Basis identified by an Acquisition
   Context it uses.
+* Each Capture’s timing bases are retained.
 * A Capture’s timing bases apply to every Captured Sample in that Capture.
 * Each Acquisition Context that a Raw ADC Record has is record-level context for
   that Raw ADC Record.
@@ -93,6 +95,8 @@ The representation of each property remains unresolved.
   captured samples within a capture. How an order position is represented,
   whether positions must be contiguous, and how missing samples or gaps appear
   in the order remain unresolved.
+* The probe requires Capture order positions and Capture Timing Bases to be
+  retained. It does not specify how they are stored.
 * The probe represents the accepted-or-rejected result as the acceptance status
   of a raw ADC record. Whether the underlying evaluation may be repeated or
   revisited remains unresolved.
@@ -130,6 +134,7 @@ The representation of each property remains unresolved.
 | Each Raw ADC Record has exactly one Acceptance status, either accepted or rejected | Direct story support: for each captured sample, the system determines whether to accept or reject the resulting raw ADC record. |
 | Each accepted Raw ADC Record is retained | Story: accepted raw ADC records are retained together with the acquisition context needed to interpret them. |
 | Every Capture has at least one Capture Timing Basis identified by an Acquisition Context it uses | Domain framing included concern: “Retaining the capture-level timing configuration or timing basis needed to interpret captured samples.” Competency question 10: “What capture-level timing configuration or timing basis applies to the captured samples?” |
+| Each Capture’s timing bases are retained | Domain framing included concern: “Retaining the capture-level timing configuration or timing basis needed to interpret captured samples.” Competency question 12: “For each captured sample, which timing information is retained: its capture timing basis and order position only, or those plus one or more sample timing observations?” |
 | A Capture’s timing bases apply to every Captured Sample in that Capture | Domain framing included concern: “Retaining the capture-level timing configuration or timing basis needed to interpret captured samples.” Competency question 10: “What capture-level timing configuration or timing basis applies to the captured samples?” |
 | Each Acquisition Context used by a Capture is capture-level context for the Raw ADC Records produced during that Capture | Domain framing support: acquisition context is applied in capture-level and record-level layers. Competency-question support: question 3 asks what retained acquisition context applies to each accepted raw ADC record. Probe proposition: which information belongs at each layer remains unresolved. |
 | Each Acquisition Context that a Raw ADC Record has is record-level context for that Raw ADC Record | Domain framing support: acquisition context is applied in capture-level and record-level layers. Competency-question support: question 3 asks what retained acquisition context applies to each accepted raw ADC record. Probe proposition: whether one record-level context may apply to multiple records remains unresolved. |
@@ -137,6 +142,7 @@ The representation of each property remains unresolved.
 | Captured Sample | Story: “For each captured sample … the resulting raw ADC record.” |
 | Captured Sample — Sample identity | Competency question 2 requires the source sample of each raw ADC record to be distinguishable. |
 | Captured Sample — Capture order position | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
+| The Capture order position of each Captured Sample is retained | Domain framing included concern: “Retaining the order of captured samples.” Competency question 12: “For each captured sample, which timing information is retained: its capture timing basis and order position only, or those plus one or more sample timing observations?” |
 | Sample Timing Observation | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
 | Sample Timing Observation — Timing observation identity | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
 | Captured Sample has Sample Timing Observation | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
