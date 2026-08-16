@@ -22,6 +22,7 @@ Which raw ADC records were produced during a capture?
 | Acquisition Context | Record type | Information needed to interpret acquired raw ADC data |
 | Capture Timing Basis | Record type | Timing information used to interpret samples from a capture |
 | Captured Sample | Record type | One ADC sample that results in a raw ADC record |
+| Sample Timing Observation | Record type | A retained timing observation for one captured sample |
 | DRV425EVM | Record type | The sensing device that produces the analog output presented for capture |
 | Analog Output | Record type | The DRV425EVM output received during a capture |
 
@@ -36,6 +37,7 @@ Which raw ADC records were produced during a capture?
 | Capture Timing Basis | Timing basis identity | Distinguishes one capture timing basis from another |
 | Captured Sample | Sample identity | Distinguishes one captured sample from another |
 | Captured Sample | Capture order position | Establishes the sample’s relative position within its capture |
+| Sample Timing Observation | Timing observation identity | Distinguishes one sample timing observation from another |
 | Analog Output | Analog output identity | Distinguishes one analog output from another |
 
 The representation of each property remains unresolved.
@@ -48,6 +50,7 @@ The representation of each property remains unresolved.
 | Capture | uses | Acquisition Context |
 | Acquisition Context | identifies | Capture Timing Basis |
 | Raw ADC Record | results from | Captured Sample |
+| Captured Sample | has | Sample Timing Observation |
 | Raw ADC Record | has | Acquisition Context |
 | DRV425EVM | produces | Analog Output |
 | Capture | receives | Analog Output |
@@ -63,6 +66,8 @@ The representation of each property remains unresolved.
 * Each captured sample has exactly one capture order position within its capture.
 * No two captured samples in the same capture have the same capture order position.
 * Capture order positions within a capture establish a strict total order.
+* Each Captured Sample has zero or more Sample Timing Observations.
+* Each Sample Timing Observation belongs to exactly one Captured Sample.
 * Each accepted raw ADC record is retained.
 * Each Acquisition Context used by a Capture is capture-level context for the Raw
   ADC Records produced during that Capture.
@@ -96,6 +101,12 @@ The representation of each property remains unresolved.
   The contents and representation of a timing basis remain unresolved.
   Configured timing describes intended sampling timing. It does not show when
   samples actually occurred.
+* Sample Timing Observations are separate from Capture Timing Bases and Capture
+  order positions.
+* The event, time reference, units, resolution, precision, uncertainty,
+  contents, and representation of a Sample Timing Observation remain unresolved.
+* If a Captured Sample has no Sample Timing Observation, the model makes no claim
+  about timing measurements outside the retained data.
 * The probe represents receipt as a relationship between a capture and an analog output.
   What establishes analog-output identity remains unresolved.
 * The boundaries or duration of an analog output remain unresolved.
@@ -126,6 +137,11 @@ The representation of each property remains unresolved.
 | Captured Sample | Story: “For each captured sample … the resulting raw ADC record.” |
 | Captured Sample — Sample identity | Competency question 2 requires the source sample of each raw ADC record to be distinguishable. |
 | Captured Sample — Capture order position | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
+| Sample Timing Observation | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
+| Sample Timing Observation — Timing observation identity | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
+| Captured Sample has Sample Timing Observation | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
+| Each Captured Sample has zero or more Sample Timing Observations | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
+| Each Sample Timing Observation belongs to exactly one Captured Sample | Domain framing included concern: “Retaining sample-level timing observations separately from capture-level configured timing when such observations are available.” Competency question 11: “What sample-level timing observations, if any, apply to each captured sample?” |
 | Raw ADC Record results from Captured Sample | Story: each captured sample has a resulting raw ADC record. |
 | One captured sample results in exactly one Raw ADC Record | Story: “For each captured sample … the resulting raw ADC record.” |
 | Each Raw ADC Record results from exactly one Captured Sample | Story: the system produces raw ADC records from captured samples and refers to the resulting raw ADC record for each captured sample. |
