@@ -24,10 +24,10 @@ artifacts:
       encoding: "utf-8"
       line_endings: "lf"
     accepted:
-      revision: "sha256:be43571ec9938978d8e34506b3828571aaa7d4e7da515f61bc5ea21c7b264636"
+      revision: "sha256:624a96333bc26faa565944fb98edccbf13f8e4aeeece6f6a67b3432c7d23d5de"
       content:
-        digest: "sha256:4cd90588e2b4129e93c570a0b438d0a47dbc27cdaec6564b0e88284d3335213e"
-        size: 3109
+        digest: "sha256:5222da6918b3b05add02db3b3da15938ddcf4a9c26afc1e5dc4f7f2e9415d90f"
+        size: 4644
       sources:
         raw-adc-story: "sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"
 
@@ -38,4 +38,10 @@ artifacts:
       media_type: "text/markdown"
       encoding: "utf-8"
       line_endings: "lf"
-    accepted: null
+    accepted:
+      revision: "sha256:7bd49b66445c4d16b3f3d83f94d2df17d76bdf188333cfda20c6d0d3efaba90b"
+      content:
+        digest: "sha256:3caf48e6fc4cc328e49f102bc881ef48f5ea27af48fe3e23cf20d585727cfc72"
+        size: 17547
+      sources:
+        raw-adc-domain-framing: "sha256:624a96333bc26faa565944fb98edccbf13f8e4aeeece6f6a67b3432c7d23d5de"
