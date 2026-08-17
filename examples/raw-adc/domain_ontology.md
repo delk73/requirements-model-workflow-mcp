@@ -7,13 +7,11 @@ rmwm:
 
 # Raw ADC Capture Domain Ontology
 
-## Ontology Probe 1: Capture Records
+## Competency Questions
 
-### Competency Question
+The ontology addresses all competency questions in the domain framing.
 
-Which raw ADC records were produced during a capture?
-
-### Concepts
+## Concepts
 
 | Concept | Relational equivalent | Meaning |
 | --- | --- | --- |
@@ -26,7 +24,7 @@ Which raw ADC records were produced during a capture?
 | DRV425EVM | Record type | The sensing device that produces the analog output presented for capture |
 | Analog Output | Record type | The DRV425EVM output received during a capture |
 
-### Properties
+## Properties
 
 | Concept | Property | Purpose |
 | --- | --- | --- |
@@ -42,7 +40,7 @@ Which raw ADC records were produced during a capture?
 
 The representation of each property remains unresolved.
 
-### Relationships
+## Relationships
 
 | Source | Relationship | Target |
 | --- | --- | --- |
@@ -56,7 +54,7 @@ The representation of each property remains unresolved.
 | Capture | receives | Analog Output |
 | Analog Output | is sampled to produce | Captured Sample |
 
-### Constraints
+## Constraints
 
 * Each captured sample results in exactly one raw ADC record.
 * Each raw ADC record results from exactly one captured sample.
@@ -65,7 +63,7 @@ The representation of each property remains unresolved.
   `rejected`.
 * Each captured sample has exactly one capture order position within its capture.
 * No two captured samples in the same capture have the same capture order position.
-* Capture order positions within a capture establish a strict total order.
+* Capture order positions place all samples within a capture in one unambiguous order.
 * The Capture order position of each Captured Sample is retained.
 * Each Captured Sample has zero or more Sample Timing Observations.
 * Each Sample Timing Observation belongs to exactly one Captured Sample.
@@ -81,7 +79,7 @@ The representation of each property remains unresolved.
 * Each Acquisition Context applicable to an accepted Raw ADC Record is retained.
 * Each analog output received during a capture is produced by a DRV425EVM.
 
-### Probe Propositions
+## Probe Propositions
 
 * The probe represents a capture as a candidate grouping for raw ADC records.
   The event that begins and ends a capture remains unresolved.
@@ -116,7 +114,7 @@ The representation of each property remains unresolved.
 * The boundaries or duration of an analog output remain unresolved.
 * The number of analog outputs associated with a capture remains unresolved.
 
-### Support Paths
+## Support Paths
 
 | Ontology probe element | Support path |
 | --- | --- |
@@ -124,7 +122,7 @@ The representation of each property remains unresolved.
 | Raw ADC Record | Story: “An ADC capture system … produces raw ADC records.” |
 | Raw ADC Record — Acceptance status | Story: for each captured sample, the system determines whether to accept or reject the resulting raw ADC record. |
 | Acquisition Context | Story: accepted records are retained with the acquisition context needed to interpret them. |
-| Capture produces Raw ADC Record | Story: the system produces raw ADC records from captured samples. |
+| Capture produces Raw ADC Record | Competency question 1: “Which raw ADC records were produced during a capture?” Probe proposition: each raw ADC record belongs to the capture that produced it and a capture may produce multiple raw ADC records. |
 | Capture uses Acquisition Context | Domain framing: acquisition context uses capture-level and record-level layers. Probe proposition: the information assigned to each layer remains unresolved. |
 | Capture Timing Basis | Domain framing included concern: “Retaining the capture-level timing configuration or timing basis needed to interpret captured samples.” |
 | Acquisition Context identifies Capture Timing Basis | Domain framing included concern: “Retaining the capture-level timing configuration or timing basis needed to interpret captured samples.” Competency question 10: “What capture-level timing configuration or timing basis applies to the captured samples?” |
@@ -153,7 +151,7 @@ The representation of each property remains unresolved.
 | Each Raw ADC Record results from exactly one Captured Sample | Story: the system produces raw ADC records from captured samples and refers to the resulting raw ADC record for each captured sample. |
 | Each captured sample has exactly one capture order position within its capture | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
 | No two captured samples in the same capture have the same capture order position | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
-| Capture order positions within a capture establish a strict total order | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
+| Capture order positions place all samples within a capture in one unambiguous order | Domain framing included concern: “Retaining the order of captured samples.” Competency question 9: “In what order were captured samples produced during a capture?” |
 | Each Raw ADC Record is produced during exactly one Capture | Competency question 1 requires records to be identified during a capture. Probe proposition: each raw ADC record belongs to the capture that produced it. |
 | DRV425EVM | Story: “A DRV425EVM produces an analog output …” |
 | Analog Output | Story: “A DRV425EVM produces an analog output … An ADC capture system samples that output …” |
