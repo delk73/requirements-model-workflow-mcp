@@ -167,6 +167,38 @@ fn wrong_type_source_is_rejected_for_domain_framing() {
 }
 
 #[test]
+fn system_story_candidate_is_rejected() {
+    let (_dir, store, _story) = fixture();
+    let identity = CandidateIdentity {
+        model_id: "raw-adc".into(),
+        artifact_id: "raw-adc-story".into(),
+        artifact_type: "system_story".into(),
+        target_revision: None,
+        source_revisions: BTreeMap::new(),
+    };
+    assert_eq!(
+        store.begin_candidate(identity).unwrap_err(),
+        "only domain framing candidates are supported"
+    );
+}
+
+#[test]
+fn domain_ontology_candidate_is_rejected() {
+    let (_dir, store, _story) = fixture();
+    let identity = CandidateIdentity {
+        model_id: "raw-adc".into(),
+        artifact_id: "raw-adc-domain-ontology".into(),
+        artifact_type: "domain_ontology".into(),
+        target_revision: None,
+        source_revisions: BTreeMap::new(),
+    };
+    assert_eq!(
+        store.begin_candidate(identity).unwrap_err(),
+        "only domain framing candidates are supported"
+    );
+}
+
+#[test]
 fn revised_story_revision_can_bind_new_framing_candidate() {
     let (dir, store, story) = fixture();
     let revised = [story.as_slice(), b" revised"].concat();
@@ -239,6 +271,80 @@ fn symlinked_staging_directory_cannot_escape_model_root() {
     assert!(fs::read_dir(&outside).unwrap().next().is_none());
     fs::remove_file(dir.join(".rmwm/staged")).unwrap();
     fs::remove_dir_all(&outside).unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_rmwm_directory_cannot_escape_model_root() {
+    use std::os::unix::fs::symlink;
+    let (dir, store, _story) = fixture();
+    let outside = dir.parent().unwrap().join("rmwm-outside-parent");
+    fs::create_dir_all(&outside).unwrap();
+    let before = fs::read_dir(&outside).unwrap().count();
+    let story_revision = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-story")
+        .unwrap()
+        .descriptor
+        .accepted
+        .as_ref()
+        .unwrap()
+        .revision
+        .clone();
+    symlink(&outside, dir.join(".rmwm")).unwrap();
+    let identity = CandidateIdentity {
+        model_id: "raw-adc".into(),
+        artifact_id: "raw-adc-domain-framing".into(),
+        artifact_type: "domain_framing".into(),
+        target_revision: None,
+        source_revisions: BTreeMap::from([("raw-adc-story".into(), story_revision)]),
+    };
+    assert_eq!(
+        store.stage_candidate(identity, "# Framing").unwrap_err(),
+        "rmwm directory escapes model root"
+    );
+    assert_eq!(fs::read_dir(&outside).unwrap().count(), before);
+    assert!(fs::symlink_metadata(dir.join(".rmwm"))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    fs::remove_file(dir.join(".rmwm")).unwrap();
+    fs::remove_dir_all(&outside).unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn missing_staging_directories_are_created_inside_model_root() {
+    let (dir, store, story) = fixture();
+    let story_revision = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-story")
+        .unwrap()
+        .descriptor
+        .accepted
+        .as_ref()
+        .unwrap()
+        .revision
+        .clone();
+    let identity = CandidateIdentity {
+        model_id: "raw-adc".into(),
+        artifact_id: "raw-adc-domain-framing".into(),
+        artifact_type: "domain_framing".into(),
+        target_revision: None,
+        source_revisions: BTreeMap::from([("raw-adc-story".into(), story_revision)]),
+    };
+    store.stage_candidate(identity, "# Framing").unwrap();
+    assert!(dir
+        .join(".rmwm/staged/raw-adc-domain-framing.json")
+        .exists());
+    assert_eq!(fs::read(dir.join("story.md")).unwrap(), story);
     fs::remove_dir_all(dir).unwrap();
 }
 

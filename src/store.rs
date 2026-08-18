@@ -91,6 +91,9 @@ impl ModelStore {
             .artifacts
             .get(&identity.artifact_id)
             .ok_or_else(|| "unknown artifact".to_owned())?;
+        if descriptor.artifact_type != "domain_framing" {
+            return Err("only domain framing candidates are supported".into());
+        }
         if descriptor.artifact_type != identity.artifact_type {
             return Err("artifact type mismatch".into());
         }
@@ -173,7 +176,7 @@ impl ModelStore {
             revision,
             state: "staged".into(),
         };
-        fs::create_dir_all(self.root.join(".rmwm/staged")).map_err(|error| error.to_string())?;
+        self.prepare_staged_dir()?;
         let staged_path = self.staged_path(&staged.identity.artifact_id)?;
         let serialized = serde_json::to_vec(&staged).map_err(|error| error.to_string())?;
         let mut file = OpenOptions::new()
@@ -241,20 +244,54 @@ impl ModelStore {
     }
     fn staged_dir(&self) -> Result<PathBuf, String> {
         let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
-        let staged = root.join(".rmwm/staged");
+        let rmwm_path = root.join(".rmwm");
+        if !rmwm_path.exists() {
+            return Ok(rmwm_path.join("staged"));
+        }
+        let rmwm = validate_directory(&root, &rmwm_path, "rmwm directory")?;
+        let staged = rmwm.join("staged");
         if !staged.exists() {
             return Ok(staged);
         }
-        let canonical = fs::canonicalize(&staged).map_err(|error| error.to_string())?;
-        if !canonical.starts_with(&root) {
-            return Err("staged directory escapes model root".into());
+        validate_directory(&root, &staged, "staged directory")
+    }
+    fn prepare_staged_dir(&self) -> Result<(), String> {
+        let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
+        let rmwm_path = root.join(".rmwm");
+        let rmwm = if rmwm_path.exists() {
+            validate_directory(&root, &rmwm_path, "rmwm directory")?
+        } else {
+            fs::create_dir(&rmwm_path).map_err(|error| error.to_string())?;
+            rmwm_path
+        };
+        let staged_path = rmwm.join("staged");
+        if staged_path.exists() {
+            validate_directory(&root, &staged_path, "staged directory")?;
+        } else {
+            fs::create_dir(&staged_path).map_err(|error| error.to_string())?;
+            validate_directory(&root, &staged_path, "staged directory")?;
         }
-        Ok(canonical)
+        Ok(())
     }
     fn staged_path(&self, artifact_id: &str) -> Result<PathBuf, String> {
         validate_artifact_id(artifact_id)?;
         Ok(self.staged_dir()?.join(format!("{artifact_id}.json")))
     }
+}
+
+fn validate_directory(root: &Path, path: &Path, name: &str) -> Result<PathBuf, String> {
+    let metadata = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
+    if metadata.file_type().is_symlink() {
+        return Err(format!("{name} escapes model root"));
+    }
+    if !metadata.is_dir() {
+        return Err(format!("{name} is not a directory"));
+    }
+    let canonical = fs::canonicalize(path).map_err(|error| error.to_string())?;
+    if !canonical.starts_with(root) {
+        return Err(format!("{name} escapes model root"));
+    }
+    Ok(canonical)
 }
 
 fn validate_artifact_id(artifact_id: &str) -> Result<(), String> {
