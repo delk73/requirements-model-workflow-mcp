@@ -33,9 +33,15 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"read_accepted_artifact","arguments":{"artifact_id":"raw-adc-story"}}}),
         json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"begin_candidate","arguments":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"}}}}),
         json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"stage_candidate","arguments":{"candidate":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"}},"body":"# Framing"}}}),
-        json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_accepted_artifact","arguments":{"artifact_id":"missing"}}}),
-        json!({"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"begin_candidate","arguments":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:stale"}}}}),
-        json!({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"stage_candidate","arguments":{"candidate":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"}},"body":"# Framing again"}}}),
+        json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_staged_candidate","arguments":{"artifact_id":"raw-adc-domain-framing"}}}),
+        json!({"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"begin_candidate_review","arguments":{"artifact_id":"raw-adc-domain-framing","candidate_revision":"sha256:PLACEHOLDER"}}}),
+        json!({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"record_candidate_decision","arguments":{"artifact_id":"raw-adc-domain-framing","candidate_revision":"sha256:PLACEHOLDER","decision":"approved","decided_by":"reviewer"}}}),
+        json!({"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_accepted_artifact","arguments":{"artifact_id":"missing"}}}),
+        json!({"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"begin_candidate","arguments":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:stale"}}}}),
+        json!({"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"stage_candidate","arguments":{"candidate":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"}},"body":"# Framing again"}}}),
+        json!({"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"read_staged_candidate","arguments":{"artifact_id":"missing"}}}),
+        json!({"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"begin_candidate_review","arguments":{"artifact_id":"raw-adc-domain-framing","candidate_revision":"sha256:wrong"}}}),
+        json!({"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"record_candidate_decision","arguments":{"artifact_id":"raw-adc-domain-framing","candidate_revision":"sha256:PLACEHOLDER","decision":"rejected","decided_by":"reviewer"}}}),
     ];
     let mut child = Command::new(env!("CARGO_BIN_EXE_requirements-model-workflow-mcp"))
         .arg(&dir)
@@ -44,8 +50,19 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         .spawn()
         .unwrap();
     let mut stdin = child.stdin.take().unwrap();
+    let staged_revision = requirements_model_workflow_mcp::digest::revision_handle(
+        "raw-adc",
+        "raw-adc-domain-framing",
+        "domain_framing",
+        "domain_framing",
+        &requirements_model_workflow_mcp::digest::content_digest(b"---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n# Framing\n"),
+        &[("raw-adc-story".into(), "sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae".into())],
+    );
     for request in input {
-        writeln!(stdin, "{}", request).unwrap();
+        let request = request
+            .to_string()
+            .replace("sha256:PLACEHOLDER", &staged_revision);
+        writeln!(stdin, "{request}").unwrap();
     }
     drop(stdin);
     let output = child.wait_with_output().unwrap();
@@ -55,14 +72,14 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
-    assert_eq!(responses.len(), 7);
-    for response in &responses[..4] {
+    assert_eq!(responses.len(), 13);
+    for response in &responses[..7] {
         let result = response.get("result").unwrap();
         assert!(result.get("content").unwrap().is_array());
         assert!(result.get("structuredContent").is_some());
         assert_ne!(result.get("isError"), Some(&Value::Bool(true)));
     }
-    for response in &responses[4..] {
+    for response in &responses[7..] {
         let error_result = response.get("result").unwrap();
         assert_eq!(error_result.get("isError"), Some(&Value::Bool(true)));
         assert!(response.get("error").is_none());
