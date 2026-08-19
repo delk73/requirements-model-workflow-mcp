@@ -69,3 +69,19 @@ pub struct StagedCandidate {
     pub revision: String,
     pub state: String,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CandidateReviewRequest {
+    pub artifact_id: String,
+    pub candidate_revision: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CandidateDecision {
+    pub artifact_id: String,
+    pub candidate_revision: String,
+    pub decision: String,
+    pub decided_by: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
+}

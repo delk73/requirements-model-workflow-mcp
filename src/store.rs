@@ -1,8 +1,8 @@
 use crate::{
     digest::{content_digest, revision_handle},
     model::{
-        AcceptedRevision, ArtifactState, CandidateIdentity, ContentDescriptor, Manifest,
-        ModelState, StagedCandidate,
+        AcceptedRevision, ArtifactState, CandidateDecision, CandidateIdentity,
+        CandidateReviewRequest, ContentDescriptor, Manifest, ModelState, StagedCandidate,
     },
 };
 use serde::Deserialize;
@@ -45,11 +45,7 @@ impl ModelStore {
                     }
                 }
             };
-            let state = if self.staged_path(artifact_id)?.exists() {
-                "staged"
-            } else {
-                state
-            };
+            let state = self.candidate_state(artifact_id)?.unwrap_or(state);
             artifacts.push(ArtifactState {
                 artifact_id: artifact_id.clone(),
                 descriptor: descriptor.clone(),
@@ -195,6 +191,61 @@ impl ModelStore {
         Ok(staged)
     }
 
+    pub fn read_staged_candidate(&self, artifact_id: &str) -> Result<StagedCandidate, String> {
+        self.validated_staged_candidate(artifact_id)
+    }
+
+    pub fn begin_candidate_review(
+        &self,
+        artifact_id: &str,
+        candidate_revision: &str,
+    ) -> Result<CandidateReviewRequest, String> {
+        let candidate = self.matching_staged_candidate(artifact_id, candidate_revision)?;
+        self.prepare_review_dir(&candidate.identity.artifact_id)?;
+        let path =
+            self.review_request_path(&candidate.identity.artifact_id, &candidate.revision)?;
+        let request = CandidateReviewRequest {
+            artifact_id: candidate.identity.artifact_id,
+            candidate_revision: candidate.revision,
+        };
+        write_new_json(&path, &request, "a review request already exists")?;
+        Ok(request)
+    }
+
+    pub fn record_candidate_decision(
+        &self,
+        artifact_id: &str,
+        candidate_revision: &str,
+        decision: &str,
+        decided_by: String,
+        rationale: Option<String>,
+    ) -> Result<CandidateDecision, String> {
+        if decision != "approved" && decision != "rejected" {
+            return Err("decision must be approved or rejected".into());
+        }
+        let candidate = self.matching_staged_candidate(artifact_id, candidate_revision)?;
+        let request_path =
+            self.review_request_path(&candidate.identity.artifact_id, &candidate.revision)?;
+        let request: CandidateReviewRequest = read_json(&request_path, "missing review request")?;
+        if request.artifact_id != candidate.identity.artifact_id
+            || request.candidate_revision != candidate.revision
+        {
+            return Err("review request does not match staged candidate".into());
+        }
+        self.prepare_review_dir(&candidate.identity.artifact_id)?;
+        let path =
+            self.review_decision_path(&candidate.identity.artifact_id, &candidate.revision)?;
+        let record = CandidateDecision {
+            artifact_id: candidate.identity.artifact_id,
+            candidate_revision: candidate.revision,
+            decision: decision.into(),
+            decided_by,
+            rationale,
+        };
+        write_new_json(&path, &record, "a candidate decision already exists")?;
+        Ok(record)
+    }
+
     fn manifest(&self) -> Result<Manifest, String> {
         serde_yaml::from_slice(&fs::read(&self.manifest_path).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())
@@ -277,6 +328,182 @@ impl ModelStore {
         validate_artifact_id(artifact_id)?;
         Ok(self.staged_dir()?.join(format!("{artifact_id}.json")))
     }
+    fn validated_staged_candidate(&self, artifact_id: &str) -> Result<StagedCandidate, String> {
+        validate_artifact_id(artifact_id)?;
+        let candidate: StagedCandidate =
+            read_json(&self.staged_path(artifact_id)?, "missing staged candidate")?;
+        if candidate.state != "staged" || candidate.identity.artifact_id != artifact_id {
+            return Err("invalid staged candidate identity".into());
+        }
+        verify_content(&candidate.bytes, &candidate.content)?;
+        let sources: Vec<_> = candidate
+            .identity
+            .source_revisions
+            .iter()
+            .map(|(id, revision)| (id.clone(), revision.clone()))
+            .collect();
+        let revision = revision_handle(
+            &candidate.identity.model_id,
+            &candidate.identity.artifact_id,
+            &candidate.identity.artifact_type,
+            &candidate.identity.artifact_type,
+            &candidate.content.digest,
+            &sources,
+        );
+        if candidate.revision != revision {
+            return Err("staged candidate revision mismatch".into());
+        }
+        self.begin_candidate(candidate.identity.clone())?;
+        Ok(candidate)
+    }
+    fn matching_staged_candidate(
+        &self,
+        artifact_id: &str,
+        revision: &str,
+    ) -> Result<StagedCandidate, String> {
+        let candidate = self.validated_staged_candidate(artifact_id)?;
+        if candidate.revision != revision {
+            return Err("candidate revision does not match staged candidate".into());
+        }
+        Ok(candidate)
+    }
+    fn review_dir(&self, artifact_id: &str) -> Result<PathBuf, String> {
+        validate_artifact_id(artifact_id)?;
+        let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
+        let rmwm = validate_directory(&root, &root.join(".rmwm"), "rmwm directory")?;
+        let reviews = validate_directory(&root, &rmwm.join("reviews"), "reviews directory")?;
+        validate_directory(
+            &root,
+            &reviews.join(artifact_id),
+            "review artifact directory",
+        )
+    }
+    fn prepare_review_dir(&self, artifact_id: &str) -> Result<(), String> {
+        self.prepare_staged_dir()?;
+        let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
+        let rmwm = validate_directory(&root, &root.join(".rmwm"), "rmwm directory")?;
+        let reviews = rmwm.join("reviews");
+        if reviews.exists() {
+            validate_directory(&root, &reviews, "reviews directory")?;
+        } else {
+            fs::create_dir(&reviews).map_err(|error| error.to_string())?;
+        }
+        let artifact = reviews.join(artifact_id);
+        if artifact.exists() {
+            validate_directory(&root, &artifact, "review artifact directory")?;
+        } else {
+            fs::create_dir(&artifact).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+    fn review_request_path(&self, artifact_id: &str, revision: &str) -> Result<PathBuf, String> {
+        Ok(self
+            .review_dir(artifact_id)?
+            .join(format!("{revision}.request.json")))
+    }
+    fn review_decision_path(&self, artifact_id: &str, revision: &str) -> Result<PathBuf, String> {
+        Ok(self
+            .review_dir(artifact_id)?
+            .join(format!("{revision}.decision.json")))
+    }
+    fn candidate_state(&self, artifact_id: &str) -> Result<Option<&'static str>, String> {
+        let staged = self.staged_path(artifact_id)?;
+        if !staged.exists() {
+            return Ok(None);
+        }
+        let candidate = self.validated_staged_candidate(artifact_id)?;
+        let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
+        let rmwm_path = root.join(".rmwm");
+        if !rmwm_path.exists() {
+            return Ok(Some("staged"));
+        }
+        let rmwm = validate_directory(&root, &rmwm_path, "rmwm directory")?;
+        let reviews_path = rmwm.join("reviews");
+        if !reviews_path.exists() {
+            return Ok(Some("staged"));
+        }
+        let reviews = validate_directory(&root, &reviews_path, "reviews directory")?;
+        let artifact_path = reviews.join(&candidate.identity.artifact_id);
+        if !artifact_path.exists() {
+            return Ok(Some("staged"));
+        }
+        let artifact_dir = validate_directory(&root, &artifact_path, "review artifact directory")?;
+        let decision_path = artifact_dir.join(format!("{}.decision.json", candidate.revision));
+        if decision_path.exists() {
+            let request_path = artifact_dir.join(format!("{}.request.json", candidate.revision));
+            let request: CandidateReviewRequest =
+                read_json(&request_path, "missing review request")?;
+            if request.artifact_id != candidate.identity.artifact_id
+                || request.candidate_revision != candidate.revision
+            {
+                return Err("review request does not match staged candidate".into());
+            }
+            let decision: CandidateDecision =
+                read_json(&decision_path, "invalid candidate decision")?;
+            if decision.artifact_id != candidate.identity.artifact_id
+                || decision.candidate_revision != candidate.revision
+            {
+                return Err("candidate decision does not match staged candidate".into());
+            }
+            return match decision.decision.as_str() {
+                "approved" => Ok(Some("approved")),
+                "rejected" => Ok(Some("rejected")),
+                _ => Err("invalid candidate decision".into()),
+            };
+        }
+        let request_path = artifact_dir.join(format!("{}.request.json", candidate.revision));
+        if request_path.exists() {
+            let request: CandidateReviewRequest =
+                read_json(&request_path, "invalid review request")?;
+            if request.artifact_id != candidate.identity.artifact_id
+                || request.candidate_revision != candidate.revision
+            {
+                return Err("review request does not match staged candidate".into());
+            }
+            return Ok(Some("under_review"));
+        }
+        Ok(Some("staged"))
+    }
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(path: &Path, missing: &str) -> Result<T, String> {
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            missing.to_owned()
+        } else {
+            error.to_string()
+        }
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(format!(
+            "persisted record is not a regular file: {}",
+            path.display()
+        ));
+    }
+    let bytes = fs::read(path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            missing.into()
+        } else {
+            error.to_string()
+        }
+    })?;
+    serde_json::from_slice(&bytes).map_err(|error| error.to_string())
+}
+
+fn write_new_json<T: serde::Serialize>(path: &Path, value: &T, exists: &str) -> Result<(), String> {
+    let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                exists.into()
+            } else {
+                error.to_string()
+            }
+        })?;
+    file.write_all(&bytes).map_err(|error| error.to_string())
 }
 
 fn validate_directory(root: &Path, path: &Path, name: &str) -> Result<PathBuf, String> {

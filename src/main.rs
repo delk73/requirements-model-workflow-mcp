@@ -15,7 +15,10 @@ fn tools() -> Value {
         {"name":"inspect_model_state","inputSchema":{"type":"object"}},
         {"name":"read_accepted_artifact","inputSchema":{"type":"object","required":["artifact_id"]}},
         {"name":"begin_candidate","inputSchema":{"type":"object","required":["model_id","artifact_id","artifact_type","target_revision","source_revisions"]}},
-        {"name":"stage_candidate","inputSchema":{"type":"object","required":["candidate","body"]}}
+        {"name":"stage_candidate","inputSchema":{"type":"object","required":["candidate","body"]}},
+        {"name":"read_staged_candidate","inputSchema":{"type":"object","required":["artifact_id"]}},
+        {"name":"begin_candidate_review","inputSchema":{"type":"object","required":["artifact_id","candidate_revision"]}},
+        {"name":"record_candidate_decision","inputSchema":{"type":"object","required":["artifact_id","candidate_revision","decision","decided_by"]}}
     ]})
 }
 
@@ -66,12 +69,48 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
                         serde_json::to_value(store.stage_candidate(identity, body)?)
                             .map_err(|error| error.to_string())
                     }
+                    "read_staged_candidate" => serde_json::to_value(
+                        store.read_staged_candidate(required_string(&args, "artifact_id")?)?,
+                    )
+                    .map_err(|error| error.to_string()),
+                    "begin_candidate_review" => {
+                        serde_json::to_value(store.begin_candidate_review(
+                            required_string(&args, "artifact_id")?,
+                            required_string(&args, "candidate_revision")?,
+                        )?)
+                        .map_err(|error| error.to_string())
+                    }
+                    "record_candidate_decision" => {
+                        serde_json::to_value(store.record_candidate_decision(
+                            required_string(&args, "artifact_id")?,
+                            required_string(&args, "candidate_revision")?,
+                            required_string(&args, "decision")?,
+                            required_string(&args, "decided_by")?.into(),
+                            optional_string(&args, "rationale")?,
+                        )?)
+                        .map_err(|error| error.to_string())
+                    }
                     _ => Err(format!("unknown tool {name}")),
                 }
             })();
             Ok(tool_result(result))
         }
         _ => Err(format!("method not found: {}", request.method)),
+    }
+}
+
+fn required_string<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("missing {key}"))
+}
+
+fn optional_string(value: &Value, key: &str) -> Result<Option<String>, String> {
+    match value.get(key) {
+        None => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value.clone())),
+        Some(_) => Err(format!("{key} must be a string")),
     }
 }
 
