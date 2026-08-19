@@ -10,22 +10,125 @@ use std::{
     path::PathBuf,
 };
 
+const SERVER_INSTRUCTIONS: &str = "This process is an MCP STDIO server, not a CLI. Use the tools to inspect model state and accepted artifacts, validate a candidate with begin_candidate, stage it, begin review, and record an approved or rejected decision. stage_candidate, begin_candidate_review, and record_candidate_decision write workflow records under .rmwm; the other operations are read-only. Approval only records the review decision: it does not accept an artifact or modify the requirements-model manifest.";
+
+fn candidate_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "model_id": {"type": "string"},
+            "artifact_id": {"type": "string"},
+            "artifact_type": {"type": "string"},
+            "target_revision": {"type": ["string", "null"]},
+            "source_revisions": {
+                "type": "object",
+                "patternProperties": {"^.+$": {"type": "string"}},
+                "additionalProperties": false
+            }
+        },
+        "required": [
+            "model_id",
+            "artifact_id",
+            "artifact_type",
+            "target_revision",
+            "source_revisions"
+        ],
+        "additionalProperties": false
+    })
+}
+
 fn tools() -> Value {
+    let candidate = candidate_schema();
     json!({"tools": [
-        {"name":"inspect_model_state","inputSchema":{"type":"object"}},
-        {"name":"read_accepted_artifact","inputSchema":{"type":"object","required":["artifact_id"]}},
-        {"name":"begin_candidate","inputSchema":{"type":"object","required":["model_id","artifact_id","artifact_type","target_revision","source_revisions"]}},
-        {"name":"stage_candidate","inputSchema":{"type":"object","required":["candidate","body"]}},
-        {"name":"read_staged_candidate","inputSchema":{"type":"object","required":["artifact_id"]}},
-        {"name":"begin_candidate_review","inputSchema":{"type":"object","required":["artifact_id","candidate_revision"]}},
-        {"name":"record_candidate_decision","inputSchema":{"type":"object","required":["artifact_id","candidate_revision","decision","decided_by"]}}
+        {
+            "name": "inspect_model_state",
+            "description": "Inspect the requirements model and report each artifact's current lifecycle state without modifying it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "read_accepted_artifact",
+            "description": "Read the exact bytes and accepted revision descriptor for one accepted artifact without modifying it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"artifact_id": {"type": "string"}},
+                "required": ["artifact_id"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "begin_candidate",
+            "description": "Validate a proposed candidate identity and its target and source revision bindings without staging or modifying records.",
+            "inputSchema": candidate.clone()
+        },
+        {
+            "name": "stage_candidate",
+            "description": "Construct and persist an exact candidate from its identity and body as a new .rmwm staged-candidate record.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "candidate": candidate,
+                    "body": {"type": "string"}
+                },
+                "required": ["candidate", "body"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "read_staged_candidate",
+            "description": "Read and validate the currently staged candidate for an artifact without modifying it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"artifact_id": {"type": "string"}},
+                "required": ["artifact_id"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "begin_candidate_review",
+            "description": "Open review for one exact staged candidate revision and persist a .rmwm review-request record.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "artifact_id": {"type": "string"},
+                    "candidate_revision": {"type": "string"}
+                },
+                "required": ["artifact_id", "candidate_revision"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "record_candidate_decision",
+            "description": "Persist an approved or rejected .rmwm review decision for one exact staged candidate; approval does not accept the artifact.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "artifact_id": {"type": "string"},
+                    "candidate_revision": {"type": "string"},
+                    "decision": {"type": "string", "enum": ["approved", "rejected"]},
+                    "decided_by": {"type": "string"},
+                    "rationale": {"type": "string"}
+                },
+                "required": [
+                    "artifact_id",
+                    "candidate_revision",
+                    "decision",
+                    "decided_by"
+                ],
+                "additionalProperties": false
+            }
+        }
     ]})
 }
 
 fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, String> {
     match request.method.as_str() {
         "initialize" => Ok(
-            json!({"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"requirements-model-workflow-mcp","version":"0.1.0"}}),
+            json!({"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"requirements-model-workflow-mcp","version":"0.1.0"},"instructions":SERVER_INSTRUCTIONS}),
         ),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(tools()),

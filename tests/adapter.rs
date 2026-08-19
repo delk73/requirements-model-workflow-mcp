@@ -29,6 +29,8 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
     manifest.replace_range(start..end, "  raw-adc-domain-framing:\n    type: \"domain_framing\"\n    representation:\n      path: \"domain_framing.md\"\n      media_type: \"text/markdown\"\n      encoding: \"utf-8\"\n      line_endings: \"lf\"\n    accepted: null");
     fs::write(dir.join("requirements_model.yaml"), manifest).unwrap();
     let input = [
+        json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{}}),
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}),
         json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_model_state","arguments":{}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"read_accepted_artifact","arguments":{"artifact_id":"raw-adc-story"}}}),
         json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"begin_candidate","arguments":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"}}}}),
@@ -72,14 +74,50 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
-    assert_eq!(responses.len(), 13);
-    for response in &responses[..7] {
+    assert_eq!(responses.len(), 15);
+
+    let instructions = responses[0]["result"]["instructions"].as_str().unwrap();
+    assert!(instructions.contains("MCP STDIO server, not a CLI"));
+    assert!(instructions.contains("write workflow records under .rmwm"));
+    assert!(instructions.contains("does not accept an artifact or modify"));
+
+    let tools = responses[1]["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 7);
+    for tool in tools {
+        assert!(!tool["description"].as_str().unwrap().is_empty());
+        let schema = &tool["inputSchema"];
+        assert_eq!(schema["type"], "object");
+        assert!(schema["properties"].is_object());
+        assert!(schema["required"].is_array());
+        assert_eq!(schema["additionalProperties"], false);
+    }
+    let stage = tools
+        .iter()
+        .find(|tool| tool["name"] == "stage_candidate")
+        .unwrap();
+    let candidate = &stage["inputSchema"]["properties"]["candidate"];
+    assert!(candidate["properties"].is_object());
+    assert_eq!(candidate["additionalProperties"], false);
+    assert_eq!(
+        candidate["properties"]["source_revisions"]["additionalProperties"],
+        false
+    );
+    let decision = tools
+        .iter()
+        .find(|tool| tool["name"] == "record_candidate_decision")
+        .unwrap();
+    assert_eq!(
+        decision["inputSchema"]["properties"]["decision"]["enum"],
+        json!(["approved", "rejected"])
+    );
+
+    for response in &responses[2..9] {
         let result = response.get("result").unwrap();
         assert!(result.get("content").unwrap().is_array());
         assert!(result.get("structuredContent").is_some());
         assert_ne!(result.get("isError"), Some(&Value::Bool(true)));
     }
-    for response in &responses[7..] {
+    for response in &responses[9..] {
         let error_result = response.get("result").unwrap();
         assert_eq!(error_result.get("isError"), Some(&Value::Bool(true)));
         assert!(response.get("error").is_none());
