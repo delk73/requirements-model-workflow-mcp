@@ -471,6 +471,39 @@ fn candidate_frontmatter_and_line_endings_are_controlled() {
 }
 
 #[test]
+fn candidate_has_one_blank_line_between_managed_frontmatter_and_body() {
+    let (dir, store, _story) = fixture();
+    let story_revision = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-story")
+        .unwrap()
+        .descriptor
+        .accepted
+        .as_ref()
+        .unwrap()
+        .revision
+        .clone();
+    let identity = CandidateIdentity {
+        model_id: "raw-adc".into(),
+        artifact_id: "raw-adc-domain-framing".into(),
+        artifact_type: "domain_framing".into(),
+        target_revision: None,
+        source_revisions: BTreeMap::from([(String::from("raw-adc-story"), story_revision)]),
+    };
+    let candidate = store
+        .stage_candidate(identity, "# Heading\n\nBody\n")
+        .unwrap();
+    assert_eq!(
+        candidate.bytes,
+        b"---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n\n# Heading\n\nBody\n"
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn candidate_frontmatter_input_is_rejected_without_staging() {
     let (dir, store, _story) = fixture();
     let story_revision = store

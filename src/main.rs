@@ -426,7 +426,10 @@ mod tests {
             ),
         )
         .unwrap();
-        assert_eq!(staged["structuredContent"]["text"], "---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n# Exact\n\nBody\n");
+        assert_eq!(
+            staged["structuredContent"]["text"],
+            "---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n\n# Exact\n\nBody\n"
+        );
         assert!(staged["structuredContent"].get("bytes").is_none());
         let read = dispatch(
             &store,
