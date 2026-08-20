@@ -155,7 +155,7 @@ impl ModelStore {
             "---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"{}\"\n  type: \"{}\"\n---\n",
             identity.artifact_id, identity.artifact_type
         );
-        let bytes = format!("{frontmatter}{body}").into_bytes();
+        let bytes = format!("{frontmatter}\n{body}").into_bytes();
         let content = ContentDescriptor {
             digest: content_digest(&bytes),
             size: bytes.len(),

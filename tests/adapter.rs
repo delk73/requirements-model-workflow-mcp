@@ -57,7 +57,7 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         "raw-adc-domain-framing",
         "domain_framing",
         "domain_framing",
-        &requirements_model_workflow_mcp::digest::content_digest(b"---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n# Framing\n"),
+        &requirements_model_workflow_mcp::digest::content_digest(b"---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n\n# Framing\n"),
         &[("raw-adc-story".into(), "sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae".into())],
     );
     for request in input {
