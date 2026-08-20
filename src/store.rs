@@ -45,11 +45,15 @@ impl ModelStore {
                     }
                 }
             };
-            let state = self.candidate_state(artifact_id)?.unwrap_or(state);
+            let candidate = self.candidate_state(artifact_id)?;
+            let (state, candidate_revision) = candidate
+                .map(|(state, revision)| (state, Some(revision)))
+                .unwrap_or((state, None));
             artifacts.push(ArtifactState {
                 artifact_id: artifact_id.clone(),
                 descriptor: descriptor.clone(),
                 state: state.into(),
+                candidate_revision,
             });
         }
         Ok(ModelState {
@@ -71,7 +75,8 @@ impl ModelStore {
         let path = self.artifact_path(&descriptor.representation.path)?;
         let bytes = fs::read(&path).map_err(|error| error.to_string())?;
         verify_content(&bytes, &accepted.content)?;
-        Ok(serde_json::json!({"artifact_id": artifact_id, "bytes": bytes, "descriptor": accepted}))
+        let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
+        Ok(serde_json::json!({"artifact_id": artifact_id, "text": text, "descriptor": accepted}))
     }
 
     pub fn begin_candidate(
@@ -143,6 +148,9 @@ impl ModelStore {
             return Err("only UTF-8 LF artifacts are supported".into());
         }
         let body = normalize_body(body)?;
+        if body.starts_with("---\n") {
+            return Err("body must exclude front matter".into());
+        }
         let frontmatter = format!(
             "---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"{}\"\n  type: \"{}\"\n---\n",
             identity.artifact_id, identity.artifact_type
@@ -406,7 +414,7 @@ impl ModelStore {
             .review_dir(artifact_id)?
             .join(format!("{revision}.decision.json")))
     }
-    fn candidate_state(&self, artifact_id: &str) -> Result<Option<&'static str>, String> {
+    fn candidate_state(&self, artifact_id: &str) -> Result<Option<(&'static str, String)>, String> {
         let staged = self.staged_path(artifact_id)?;
         if !staged.exists() {
             return Ok(None);
@@ -415,17 +423,17 @@ impl ModelStore {
         let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
         let rmwm_path = root.join(".rmwm");
         if !rmwm_path.exists() {
-            return Ok(Some("staged"));
+            return Ok(Some(("staged", candidate.revision)));
         }
         let rmwm = validate_directory(&root, &rmwm_path, "rmwm directory")?;
         let reviews_path = rmwm.join("reviews");
         if !reviews_path.exists() {
-            return Ok(Some("staged"));
+            return Ok(Some(("staged", candidate.revision)));
         }
         let reviews = validate_directory(&root, &reviews_path, "reviews directory")?;
         let artifact_path = reviews.join(&candidate.identity.artifact_id);
         if !artifact_path.exists() {
-            return Ok(Some("staged"));
+            return Ok(Some(("staged", candidate.revision)));
         }
         let artifact_dir = validate_directory(&root, &artifact_path, "review artifact directory")?;
         let decision_path = artifact_dir.join(format!("{}.decision.json", candidate.revision));
@@ -446,8 +454,8 @@ impl ModelStore {
                 return Err("candidate decision does not match staged candidate".into());
             }
             return match decision.decision.as_str() {
-                "approved" => Ok(Some("approved")),
-                "rejected" => Ok(Some("rejected")),
+                "approved" => Ok(Some(("approved", candidate.revision))),
+                "rejected" => Ok(Some(("rejected", candidate.revision))),
                 _ => Err("invalid candidate decision".into()),
             };
         }
@@ -460,9 +468,9 @@ impl ModelStore {
             {
                 return Err("review request does not match staged candidate".into());
             }
-            return Ok(Some("under_review"));
+            return Ok(Some(("under_review", candidate.revision)));
         }
-        Ok(Some("staged"))
+        Ok(Some(("staged", candidate.revision)))
     }
 }
 
