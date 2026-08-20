@@ -44,6 +44,8 @@ pub struct ArtifactState {
     #[serde(flatten)]
     pub descriptor: ArtifactDescriptor,
     pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_revision: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -65,6 +67,15 @@ pub struct CandidateIdentity {
 pub struct StagedCandidate {
     pub identity: CandidateIdentity,
     pub bytes: Vec<u8>,
+    pub content: ContentDescriptor,
+    pub revision: String,
+    pub state: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StagedCandidateView {
+    pub identity: CandidateIdentity,
+    pub text: String,
     pub content: ContentDescriptor,
     pub revision: String,
     pub state: String,

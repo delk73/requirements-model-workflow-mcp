@@ -1,5 +1,5 @@
 use requirements_model_workflow_mcp::{
-    model::CandidateIdentity,
+    model::{CandidateIdentity, StagedCandidate, StagedCandidateView},
     protocol::{JsonRpcRequest, JsonRpcResponse},
     store::ModelStore,
 };
@@ -42,7 +42,7 @@ fn tools() -> Value {
     json!({"tools": [
         {
             "name": "inspect_model_state",
-            "description": "Inspect the requirements model and report each artifact's current lifecycle state without modifying it.",
+            "description": "Inspect the requirements model and report each artifact's current lifecycle state without modifying it. descriptor.accepted.revision identifies the currently accepted artifact; candidate_revision identifies the staged or reviewed candidate.",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -52,7 +52,7 @@ fn tools() -> Value {
         },
         {
             "name": "read_accepted_artifact",
-            "description": "Read the exact bytes and accepted revision descriptor for one accepted artifact without modifying it.",
+            "description": "Read the exact UTF-8 text and accepted revision descriptor for one accepted artifact without modifying it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"artifact_id": {"type": "string"}},
@@ -67,12 +67,15 @@ fn tools() -> Value {
         },
         {
             "name": "stage_candidate",
-            "description": "Construct and persist an exact candidate from its identity and body as a new .rmwm staged-candidate record.",
+            "description": "Construct and persist an exact candidate from its identity and body text, excluding RMWM front matter, as a new .rmwm staged-candidate record. The tool owns front-matter generation.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "candidate": candidate,
-                    "body": {"type": "string"}
+                    "body": {
+                        "type": "string",
+                        "description": "Candidate artifact body text, excluding RMWM front matter; the tool generates the front matter."
+                    }
                 },
                 "required": ["candidate", "body"],
                 "additionalProperties": false
@@ -80,7 +83,7 @@ fn tools() -> Value {
         },
         {
             "name": "read_staged_candidate",
-            "description": "Read and validate the currently staged candidate for an artifact without modifying it.",
+            "description": "Read and validate the currently staged candidate's exact UTF-8 text for an artifact without modifying it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"artifact_id": {"type": "string"}},
@@ -169,12 +172,14 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
                             .get("body")
                             .and_then(Value::as_str)
                             .ok_or_else(|| "missing body".to_owned())?;
-                        serde_json::to_value(store.stage_candidate(identity, body)?)
-                            .map_err(|error| error.to_string())
+                        serde_json::to_value(staged_candidate_view(
+                            store.stage_candidate(identity, body)?,
+                        )?)
+                        .map_err(|error| error.to_string())
                     }
-                    "read_staged_candidate" => serde_json::to_value(
+                    "read_staged_candidate" => serde_json::to_value(staged_candidate_view(
                         store.read_staged_candidate(required_string(&args, "artifact_id")?)?,
-                    )
+                    )?)
                     .map_err(|error| error.to_string()),
                     "begin_candidate_review" => {
                         serde_json::to_value(store.begin_candidate_review(
@@ -200,6 +205,24 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
         }
         _ => Err(format!("method not found: {}", request.method)),
     }
+}
+
+fn staged_candidate_view(candidate: StagedCandidate) -> Result<StagedCandidateView, String> {
+    let StagedCandidate {
+        identity,
+        bytes,
+        content,
+        revision,
+        state,
+    } = candidate;
+    let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
+    Ok(StagedCandidateView {
+        identity,
+        text,
+        content,
+        revision,
+        state,
+    })
 }
 
 fn required_string<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
@@ -361,6 +384,63 @@ mod tests {
             )
         )
         .is_ok());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn artifact_tool_responses_use_exact_text_without_byte_arrays() {
+        let (dir, store, story_revision) = model();
+        let request = |name: &str, arguments: serde_json::Value| super::JsonRpcRequest {
+            jsonrpc: "2.0".into(),
+            id: Some(json!(1)),
+            method: "tools/call".into(),
+            params: json!({"name": name, "arguments": arguments}),
+        };
+        let accepted = dispatch(
+            &store,
+            &request(
+                "read_accepted_artifact",
+                json!({"artifact_id": "raw-adc-story"}),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            accepted["structuredContent"]["text"],
+            json!(fs::read_to_string(dir.join("story.md")).unwrap())
+        );
+        assert!(accepted["structuredContent"].get("bytes").is_none());
+
+        let identity = CandidateIdentity {
+            model_id: "raw-adc".into(),
+            artifact_id: "raw-adc-domain-framing".into(),
+            artifact_type: "domain_framing".into(),
+            target_revision: None,
+            source_revisions: BTreeMap::from([(String::from("raw-adc-story"), story_revision)]),
+        };
+        let identity_value = serde_json::to_value(&identity).unwrap();
+        let staged = dispatch(
+            &store,
+            &request(
+                "stage_candidate",
+                json!({"candidate": identity_value, "body": "# Exact\n\nBody"}),
+            ),
+        )
+        .unwrap();
+        assert_eq!(staged["structuredContent"]["text"], "---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n# Exact\n\nBody\n");
+        assert!(staged["structuredContent"].get("bytes").is_none());
+        let read = dispatch(
+            &store,
+            &request(
+                "read_staged_candidate",
+                json!({"artifact_id": "raw-adc-domain-framing"}),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            read["structuredContent"]["text"],
+            staged["structuredContent"]["text"]
+        );
+        assert!(read["structuredContent"].get("bytes").is_none());
         fs::remove_dir_all(dir).unwrap();
     }
 }

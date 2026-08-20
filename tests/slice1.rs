@@ -51,7 +51,7 @@ fn raw_adc_story_reaches_staged_boundary_without_mutating_story() {
         "accepted"
     );
     let accepted = store.read_accepted_artifact("raw-adc-story").unwrap();
-    assert_eq!(accepted["bytes"].as_array().unwrap().len(), story.len());
+    assert_eq!(accepted["text"].as_str().unwrap().as_bytes(), story);
     let story_revision = state
         .artifacts
         .iter()
@@ -465,6 +465,42 @@ fn candidate_frontmatter_and_line_endings_are_controlled() {
     assert!(candidate.bytes.ends_with(b"\n"));
     assert!(String::from_utf8(candidate.bytes).unwrap().starts_with("---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-framing\"\n  type: \"domain_framing\"\n---\n"));
     assert!(dir
+        .join(".rmwm/staged/raw-adc-domain-framing.json")
+        .exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn candidate_frontmatter_input_is_rejected_without_staging() {
+    let (dir, store, _story) = fixture();
+    let story_revision = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-story")
+        .unwrap()
+        .descriptor
+        .accepted
+        .as_ref()
+        .unwrap()
+        .revision
+        .clone();
+    let identity = CandidateIdentity {
+        model_id: "raw-adc".into(),
+        artifact_id: "raw-adc-domain-framing".into(),
+        artifact_type: "domain_framing".into(),
+        target_revision: None,
+        source_revisions: BTreeMap::from([(String::from("raw-adc-story"), story_revision)]),
+    };
+    let error = store
+        .stage_candidate(
+            identity,
+            "---\r\ntitle: User front matter\r\n---\r\n# Duplicate",
+        )
+        .unwrap_err();
+    assert_eq!(error, "body must exclude front matter");
+    assert!(!dir
         .join(".rmwm/staged/raw-adc-domain-framing.json")
         .exists());
     fs::remove_dir_all(dir).unwrap();

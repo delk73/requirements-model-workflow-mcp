@@ -44,6 +44,46 @@ fn fixture() -> (PathBuf, ModelStore, String) {
     (dir, store, revision)
 }
 
+fn accepted_target_fixture() -> (PathBuf, ModelStore, String, String) {
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
+    let dir = std::env::temp_dir().join(format!(
+        "rmwm-review-accepted-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    for name in ["requirements_model.yaml", "story.md", "domain_framing.md"] {
+        fs::copy(source.join(name), dir.join(name)).unwrap();
+    }
+    let store = ModelStore::open(&dir);
+    let state = store.inspect_model_state().unwrap();
+    let story_revision = state
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-story")
+        .unwrap()
+        .descriptor
+        .accepted
+        .as_ref()
+        .unwrap()
+        .revision
+        .clone();
+    let framing_revision = state
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap()
+        .descriptor
+        .accepted
+        .as_ref()
+        .unwrap()
+        .revision
+        .clone();
+    (dir, store, story_revision, framing_revision)
+}
+
 fn identity(story_revision: String) -> CandidateIdentity {
     CandidateIdentity {
         model_id: "raw-adc".into(),
@@ -71,6 +111,18 @@ fn exact_staged_candidate_can_be_read_and_reviewed_without_mutating_inputs() {
     let staged = stage(&store, revision);
     let staged_path = dir.join(".rmwm/staged/raw-adc-domain-framing.json");
     let staged_bytes = fs::read(&staged_path).unwrap();
+    let staged_state = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(staged_state.state, "staged");
+    assert_eq!(
+        staged_state.candidate_revision.as_deref(),
+        Some(staged.revision.as_str())
+    );
     assert_eq!(
         store
             .read_staged_candidate("raw-adc-domain-framing")
@@ -82,16 +134,17 @@ fn exact_staged_candidate_can_be_read_and_reviewed_without_mutating_inputs() {
         .begin_candidate_review("raw-adc-domain-framing", &staged.revision)
         .unwrap();
     assert_eq!(request.candidate_revision, staged.revision);
+    let review_state = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(review_state.state, "under_review");
     assert_eq!(
-        store
-            .inspect_model_state()
-            .unwrap()
-            .artifacts
-            .iter()
-            .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
-            .unwrap()
-            .state,
-        "under_review"
+        review_state.candidate_revision.as_deref(),
+        Some(staged.revision.as_str())
     );
     assert_eq!(fs::read(&staged_path).unwrap(), staged_bytes);
     assert_eq!(
@@ -125,6 +178,8 @@ fn altered_staged_record_and_revision_mismatch_are_rejected() {
 #[test]
 fn approval_rejection_and_duplicate_decisions_are_immutable() {
     let (dir, store, revision) = fixture();
+    let manifest = fs::read(dir.join("requirements_model.yaml")).unwrap();
+    let story = fs::read(dir.join("story.md")).unwrap();
     let staged = stage(&store, revision);
     assert!(store
         .record_candidate_decision(
@@ -148,17 +203,23 @@ fn approval_rejection_and_duplicate_decisions_are_immutable() {
         )
         .unwrap();
     assert_eq!(decision.decision, "approved");
+    let approved_state = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(approved_state.state, "approved");
     assert_eq!(
-        store
-            .inspect_model_state()
-            .unwrap()
-            .artifacts
-            .iter()
-            .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
-            .unwrap()
-            .state,
-        "approved"
+        approved_state.candidate_revision.as_deref(),
+        Some(staged.revision.as_str())
     );
+    assert_eq!(
+        fs::read(dir.join("requirements_model.yaml")).unwrap(),
+        manifest
+    );
+    assert_eq!(fs::read(dir.join("story.md")).unwrap(), story);
     assert!(store
         .record_candidate_decision(
             "raw-adc-domain-framing",
@@ -168,6 +229,60 @@ fn approval_rejection_and_duplicate_decisions_are_immutable() {
             None
         )
         .is_err());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn approval_of_revision_preserves_accepted_target_and_manifest() {
+    let (dir, store, story_revision, accepted_revision) = accepted_target_fixture();
+    let manifest = fs::read(dir.join("requirements_model.yaml")).unwrap();
+    let accepted_framing = fs::read(dir.join("domain_framing.md")).unwrap();
+    let staged = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-framing".into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(accepted_revision.clone()),
+                source_revisions: BTreeMap::from([("raw-adc-story".into(), story_revision)]),
+            },
+            "# Revised framing",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-framing", &staged.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-framing",
+            &staged.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+
+    let approved = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(approved.state, "approved");
+    assert_eq!(
+        approved.descriptor.accepted.unwrap().revision,
+        accepted_revision
+    );
+    assert_eq!(approved.candidate_revision, Some(staged.revision));
+    assert_eq!(
+        fs::read(dir.join("requirements_model.yaml")).unwrap(),
+        manifest
+    );
+    assert_eq!(
+        fs::read(dir.join("domain_framing.md")).unwrap(),
+        accepted_framing
+    );
     fs::remove_dir_all(dir).unwrap();
 }
 
@@ -187,16 +302,17 @@ fn rejection_produces_rejected_state() {
             None,
         )
         .unwrap();
+    let rejected_state = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(rejected_state.state, "rejected");
     assert_eq!(
-        store
-            .inspect_model_state()
-            .unwrap()
-            .artifacts
-            .iter()
-            .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
-            .unwrap()
-            .state,
-        "rejected"
+        rejected_state.candidate_revision.as_deref(),
+        Some(staged.revision.as_str())
     );
     fs::remove_dir_all(dir).unwrap();
 }
