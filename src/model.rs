@@ -69,6 +69,8 @@ pub struct StagedCandidate {
     pub bytes: Vec<u8>,
     pub content: ContentDescriptor,
     pub revision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supersedes: Option<String>,
     pub state: String,
 }
 
@@ -78,6 +80,8 @@ pub struct StagedCandidateView {
     pub text: String,
     pub content: ContentDescriptor,
     pub revision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supersedes: Option<String>,
     pub state: String,
 }
 

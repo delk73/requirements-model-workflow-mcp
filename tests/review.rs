@@ -109,8 +109,10 @@ fn exact_staged_candidate_can_be_read_and_reviewed_without_mutating_inputs() {
     let manifest = fs::read(dir.join("requirements_model.yaml")).unwrap();
     let story = fs::read(dir.join("story.md")).unwrap();
     let staged = stage(&store, revision);
+    assert_eq!(staged.supersedes, None);
     let staged_path = dir.join(".rmwm/staged/raw-adc-domain-framing.json");
     let staged_bytes = fs::read(&staged_path).unwrap();
+    assert!(!String::from_utf8_lossy(&staged_bytes).contains("supersedes"));
     let staged_state = store
         .inspect_model_state()
         .unwrap()
@@ -313,6 +315,177 @@ fn rejection_produces_rejected_state() {
     assert_eq!(
         rejected_state.candidate_revision.as_deref(),
         Some(staged.revision.as_str())
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn rejected_candidate_is_replaced_without_losing_review_history() {
+    let (dir, store, story_revision, accepted_revision) = accepted_target_fixture();
+    let candidate_a = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-framing".into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(accepted_revision.clone()),
+                source_revisions: BTreeMap::from([(
+                    "raw-adc-story".into(),
+                    story_revision.clone(),
+                )]),
+            },
+            "# Rejected framing",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-framing", &candidate_a.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-framing",
+            &candidate_a.revision,
+            "rejected",
+            "reviewer".into(),
+            Some("needs revision".into()),
+        )
+        .unwrap();
+    let review_dir = dir.join(".rmwm/reviews/raw-adc-domain-framing");
+    let request_path = review_dir.join(format!("{}.request.json", candidate_a.revision));
+    let decision_path = review_dir.join(format!("{}.decision.json", candidate_a.revision));
+    let request_before = fs::read(&request_path).unwrap();
+    let decision_before = fs::read(&decision_path).unwrap();
+
+    let candidate_b = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-framing".into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(accepted_revision.clone()),
+                source_revisions: BTreeMap::from([(
+                    "raw-adc-story".into(),
+                    story_revision.clone(),
+                )]),
+            },
+            "# Revised framing",
+        )
+        .unwrap();
+
+    assert_ne!(candidate_b.content.digest, candidate_a.content.digest);
+    assert_ne!(candidate_b.revision, candidate_a.revision);
+    assert_eq!(
+        candidate_b.supersedes.as_deref(),
+        Some(candidate_a.revision.as_str())
+    );
+    assert_eq!(candidate_b.state, "staged");
+    assert_eq!(
+        candidate_b.identity.target_revision,
+        Some(accepted_revision.clone())
+    );
+    assert_eq!(
+        candidate_b.identity.source_revisions.get("raw-adc-story"),
+        Some(&story_revision)
+    );
+    assert_eq!(fs::read(&request_path).unwrap(), request_before);
+    assert_eq!(fs::read(&decision_path).unwrap(), decision_before);
+    assert!(!review_dir
+        .join(format!("{}.request.json", candidate_b.revision))
+        .exists());
+    assert_eq!(
+        store
+            .inspect_model_state()
+            .unwrap()
+            .artifacts
+            .into_iter()
+            .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+            .unwrap()
+            .state,
+        "staged"
+    );
+    assert_eq!(
+        store
+            .inspect_model_state()
+            .unwrap()
+            .artifacts
+            .into_iter()
+            .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+            .unwrap()
+            .descriptor
+            .accepted
+            .unwrap()
+            .revision,
+        accepted_revision
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn replacement_preparation_failure_preserves_rejected_active_candidate() {
+    let (dir, store, story_revision) = fixture();
+    let candidate = stage(&store, story_revision.clone());
+    store
+        .begin_candidate_review("raw-adc-domain-framing", &candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-framing",
+            &candidate.revision,
+            "rejected",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+    let staged_path = dir.join(".rmwm/staged/raw-adc-domain-framing.json");
+    let active_before = fs::read(&staged_path).unwrap();
+    fs::write(staged_path.with_extension("json.tmp"), b"occupied").unwrap();
+
+    assert!(store
+        .stage_candidate(identity(story_revision), "# Replacement")
+        .is_err());
+    assert_eq!(fs::read(&staged_path).unwrap(), active_before);
+    assert_eq!(
+        fs::read(staged_path.with_extension("json.tmp")).unwrap(),
+        b"occupied"
+    );
+    assert_eq!(
+        store
+            .read_staged_candidate("raw-adc-domain-framing")
+            .unwrap()
+            .revision,
+        candidate.revision
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn identical_replacement_of_rejected_candidate_is_refused() {
+    let (dir, store, story_revision) = fixture();
+    let candidate = stage(&store, story_revision.clone());
+    store
+        .begin_candidate_review("raw-adc-domain-framing", &candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-framing",
+            &candidate.revision,
+            "rejected",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(
+        store
+            .stage_candidate(identity(story_revision), "# Framing")
+            .unwrap_err(),
+        "replacement candidate must have a new revision"
+    );
+    assert_eq!(
+        store
+            .read_staged_candidate("raw-adc-domain-framing")
+            .unwrap()
+            .revision,
+        candidate.revision
     );
     fs::remove_dir_all(dir).unwrap();
 }
