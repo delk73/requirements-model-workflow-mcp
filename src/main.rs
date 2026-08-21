@@ -213,6 +213,7 @@ fn staged_candidate_view(candidate: StagedCandidate) -> Result<StagedCandidateVi
         bytes,
         content,
         revision,
+        supersedes,
         state,
     } = candidate;
     let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
@@ -221,6 +222,7 @@ fn staged_candidate_view(candidate: StagedCandidate) -> Result<StagedCandidateVi
         text,
         content,
         revision,
+        supersedes,
         state,
     })
 }

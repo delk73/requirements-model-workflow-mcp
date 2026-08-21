@@ -136,6 +136,15 @@ impl ModelStore {
         body: &str,
     ) -> Result<StagedCandidate, String> {
         let identity = self.begin_candidate(identity)?;
+        let supersedes = match self.candidate_state(&identity.artifact_id)? {
+            None => None,
+            Some(("rejected", revision)) => Some(revision),
+            Some(_) => {
+                return Err(
+                    "a staged candidate already exists; replacement is not supported".into(),
+                )
+            }
+        };
         let descriptor = self
             .manifest()?
             .artifacts
@@ -173,29 +182,29 @@ impl ModelStore {
             &content.digest,
             &sources,
         );
+        if supersedes.as_deref() == Some(revision.as_str()) {
+            return Err("replacement candidate must have a new revision".into());
+        }
         let staged = StagedCandidate {
             identity,
             bytes,
             content,
             revision,
+            supersedes,
             state: "staged".into(),
         };
         self.prepare_staged_dir()?;
         let staged_path = self.staged_path(&staged.identity.artifact_id)?;
         let serialized = serde_json::to_vec(&staged).map_err(|error| error.to_string())?;
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&staged_path)
-            .map_err(|error| {
-                if error.kind() == std::io::ErrorKind::AlreadyExists {
-                    "a staged candidate already exists; replacement is not supported".to_owned()
-                } else {
-                    error.to_string()
-                }
-            })?;
-        file.write_all(&serialized)
-            .map_err(|error| error.to_string())?;
+        if staged.supersedes.is_some() {
+            replace_staged_json(&staged_path, &serialized)?;
+        } else {
+            write_new_json(
+                &staged_path,
+                &staged,
+                "a staged candidate already exists; replacement is not supported",
+            )?;
+        }
         Ok(staged)
     }
 
@@ -512,6 +521,49 @@ fn write_new_json<T: serde::Serialize>(path: &Path, value: &T, exists: &str) -> 
             }
         })?;
     file.write_all(&bytes).map_err(|error| error.to_string())
+}
+
+fn replace_staged_json(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let temporary_path = path.with_extension("json.tmp");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary_path)
+        .map_err(|error| error.to_string())?;
+    let result = (|| {
+        file.write_all(bytes).map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        drop(file);
+        fs::rename(&temporary_path, path).map_err(|error| error.to_string())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn failed_staged_replacement_removes_its_temporary_file() {
+        let root = std::env::temp_dir().join(format!(
+            "rmwm-replace-staged-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let staged_path = root.join("candidate.json");
+        fs::create_dir(&staged_path).unwrap();
+
+        assert!(replace_staged_json(&staged_path, b"replacement").is_err());
+        assert!(!staged_path.with_extension("json.tmp").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
 }
 
 fn validate_directory(root: &Path, path: &Path, name: &str) -> Result<PathBuf, String> {
