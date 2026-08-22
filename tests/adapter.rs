@@ -78,11 +78,11 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
 
     let instructions = responses[0]["result"]["instructions"].as_str().unwrap();
     assert!(instructions.contains("MCP STDIO server, not a CLI"));
-    assert!(instructions.contains("write workflow records under .rmwm"));
-    assert!(instructions.contains("does not accept an artifact or modify"));
+    assert!(instructions.contains("Workflow records are stored under .rmwm"));
+    assert!(instructions.contains("accept an approved candidate"));
 
     let tools = responses[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 7);
+    assert_eq!(tools.len(), 8);
     for tool in tools {
         assert!(!tool["description"].as_str().unwrap().is_empty());
         let schema = &tool["inputSchema"];

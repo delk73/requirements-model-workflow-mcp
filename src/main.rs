@@ -10,7 +10,7 @@ use std::{
     path::PathBuf,
 };
 
-const SERVER_INSTRUCTIONS: &str = "This process is an MCP STDIO server, not a CLI. Use the tools to inspect model state and accepted artifacts, validate a candidate with begin_candidate, stage it, begin review, and record an approved or rejected decision. stage_candidate, begin_candidate_review, and record_candidate_decision write workflow records under .rmwm; the other operations are read-only. Approval only records the review decision: it does not accept an artifact or modify the requirements-model manifest.";
+const SERVER_INSTRUCTIONS: &str = "This process is an MCP STDIO server, not a CLI. Use the tools to inspect model state and accepted artifacts, validate a candidate with begin_candidate, stage it, begin review, record an approved or rejected decision, and accept an approved candidate. Workflow records are stored under .rmwm. Acceptance commits the exact approved bytes and updates the requirements-model manifest.";
 
 fn candidate_schema() -> Value {
     json!({
@@ -124,6 +124,19 @@ fn tools() -> Value {
                 ],
                 "additionalProperties": false
             }
+        },
+        {
+            "name": "accept_candidate",
+            "description": "Accept one exact approved staged domain-framing candidate, committing its exact bytes and accepted descriptor.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "artifact_id": {"type": "string"},
+                    "candidate_revision": {"type": "string"}
+                },
+                "required": ["artifact_id", "candidate_revision"],
+                "additionalProperties": false
+            }
         }
     ]})
 }
@@ -198,6 +211,11 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
                         )?)
                         .map_err(|error| error.to_string())
                     }
+                    "accept_candidate" => serde_json::to_value(store.accept_candidate(
+                        required_string(&args, "artifact_id")?,
+                        required_string(&args, "candidate_revision")?,
+                    )?)
+                    .map_err(|error| error.to_string()),
                     _ => Err(format!("unknown tool {name}")),
                 }
             })();
