@@ -5,13 +5,34 @@ use crate::{
         CandidateReviewRequest, ContentDescriptor, Manifest, ModelState, StagedCandidate,
     },
 };
+use fs2::FileExt;
 use serde::Deserialize;
 use std::{
     collections::BTreeMap,
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
 };
+
+#[derive(Deserialize, serde::Serialize)]
+struct AcceptanceJournal {
+    artifact_id: String,
+    candidate_revision: String,
+    artifact_path: String,
+    old_artifact: Option<Vec<u8>>,
+    old_manifest: Vec<u8>,
+    new_manifest: Vec<u8>,
+}
+
+struct AcceptanceLock {
+    file: File,
+}
+
+impl Drop for AcceptanceLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
+}
 
 #[derive(Debug)]
 pub struct ModelStore {
@@ -29,6 +50,7 @@ impl ModelStore {
     }
 
     pub fn inspect_model_state(&self) -> Result<ModelState, String> {
+        self.recover_acceptance()?;
         let manifest = self.manifest()?;
         let mut artifacts = Vec::new();
         for (artifact_id, descriptor) in &manifest.artifacts {
@@ -63,6 +85,7 @@ impl ModelStore {
     }
 
     pub fn read_accepted_artifact(&self, artifact_id: &str) -> Result<serde_json::Value, String> {
+        self.recover_acceptance()?;
         let manifest = self.manifest()?;
         let descriptor = manifest
             .artifacts
@@ -83,6 +106,11 @@ impl ModelStore {
         &self,
         identity: CandidateIdentity,
     ) -> Result<CandidateIdentity, String> {
+        self.recover_acceptance()?;
+        self.validate_candidate(identity)
+    }
+
+    fn validate_candidate(&self, identity: CandidateIdentity) -> Result<CandidateIdentity, String> {
         validate_artifact_id(&identity.artifact_id)?;
         let manifest = self.manifest()?;
         if identity.model_id != manifest.model_id {
@@ -135,6 +163,7 @@ impl ModelStore {
         identity: CandidateIdentity,
         body: &str,
     ) -> Result<StagedCandidate, String> {
+        self.recover_acceptance()?;
         let identity = self.begin_candidate(identity)?;
         let supersedes = match self.candidate_state(&identity.artifact_id)? {
             None => None,
@@ -209,6 +238,7 @@ impl ModelStore {
     }
 
     pub fn read_staged_candidate(&self, artifact_id: &str) -> Result<StagedCandidate, String> {
+        self.recover_acceptance()?;
         self.validated_staged_candidate(artifact_id)
     }
 
@@ -217,6 +247,7 @@ impl ModelStore {
         artifact_id: &str,
         candidate_revision: &str,
     ) -> Result<CandidateReviewRequest, String> {
+        self.recover_acceptance()?;
         let candidate = self.matching_staged_candidate(artifact_id, candidate_revision)?;
         self.prepare_review_dir(&candidate.identity.artifact_id)?;
         let path =
@@ -237,6 +268,7 @@ impl ModelStore {
         decided_by: String,
         rationale: Option<String>,
     ) -> Result<CandidateDecision, String> {
+        self.recover_acceptance()?;
         if decision != "approved" && decision != "rejected" {
             return Err("decision must be approved or rejected".into());
         }
@@ -263,9 +295,210 @@ impl ModelStore {
         Ok(record)
     }
 
+    pub fn accept_candidate(
+        &self,
+        artifact_id: &str,
+        candidate_revision: &str,
+    ) -> Result<AcceptedRevision, String> {
+        let _lock = self.acquire_acceptance_lock()?;
+        self.recover_acceptance_locked()?;
+        let candidate = self.matching_staged_candidate(artifact_id, candidate_revision)?;
+        match self.candidate_state(artifact_id)? {
+            Some(("approved", revision)) if revision == candidate.revision => {}
+            _ => return Err("candidate is not approved".into()),
+        }
+        self.validate_candidate(candidate.identity.clone())?;
+
+        let mut manifest = self.manifest()?;
+        let descriptor = manifest
+            .artifacts
+            .get_mut(artifact_id)
+            .ok_or_else(|| "unknown artifact".to_owned())?;
+        let artifact_relative_path = descriptor.representation.path.clone();
+        let artifact_path = self.artifact_path(&artifact_relative_path)?;
+        let old_artifact = if artifact_path.exists() {
+            Some(fs::read(&artifact_path).map_err(|error| error.to_string())?)
+        } else {
+            None
+        };
+        if let Some(accepted) = &descriptor.accepted {
+            verify_content(
+                old_artifact
+                    .as_deref()
+                    .ok_or("accepted artifact is missing")?,
+                &accepted.content,
+            )?;
+        }
+        verify_content(&candidate.bytes, &candidate.content)?;
+        let accepted = AcceptedRevision {
+            revision: candidate.revision.clone(),
+            content: candidate.content.clone(),
+            sources: candidate.identity.source_revisions.clone(),
+        };
+        descriptor.accepted = Some(accepted.clone());
+        let old_manifest = fs::read(&self.manifest_path).map_err(|error| error.to_string())?;
+        let new_manifest = serde_yaml::to_string(&manifest)
+            .map_err(|error| error.to_string())?
+            .into_bytes();
+        let journal = AcceptanceJournal {
+            artifact_id: artifact_id.into(),
+            candidate_revision: candidate.revision,
+            artifact_path: artifact_relative_path,
+            old_artifact,
+            old_manifest,
+            new_manifest: new_manifest.clone(),
+        };
+        self.prepare_recovery_dir()?;
+        let journal_path = self.acceptance_journal_path(artifact_id)?;
+        write_new_json(
+            &journal_path,
+            &journal,
+            "acceptance recovery already exists",
+        )?;
+        let artifact_temp = temporary_path(&artifact_path, "accept");
+        let manifest_temp = temporary_path(&self.manifest_path, "accept");
+        let staged_path = self.staged_path(artifact_id)?;
+        if let Err(error) = write_temporary_file(&artifact_temp, &candidate.bytes)
+            .and_then(|_| write_temporary_file(&manifest_temp, &new_manifest))
+            .and_then(|_| {
+                fs::rename(&artifact_temp, &artifact_path).map_err(|error| error.to_string())
+            })
+            .and_then(|_| {
+                fs::rename(&manifest_temp, &self.manifest_path).map_err(|error| error.to_string())
+            })
+        {
+            let _ = fs::remove_file(&artifact_temp);
+            let _ = fs::remove_file(&manifest_temp);
+            self.recover_acceptance_locked()?;
+            return Err(error);
+        }
+        Ok(self.complete_acceptance_after_manifest(accepted, &staged_path, artifact_id))
+    }
+
     fn manifest(&self) -> Result<Manifest, String> {
         serde_yaml::from_slice(&fs::read(&self.manifest_path).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())
+    }
+    fn recovery_dir(&self) -> Result<PathBuf, String> {
+        let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
+        let rmwm = validate_directory(&root, &root.join(".rmwm"), "rmwm directory")?;
+        Ok(rmwm.join("recovery"))
+    }
+    fn acquire_acceptance_lock(&self) -> Result<AcceptanceLock, String> {
+        self.prepare_staged_dir()?;
+        let lock_path = self
+            .root
+            .join(".rmwm")
+            .join("requirements-model.accept.lock");
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .map_err(|error| error.to_string())?;
+        file.try_lock_exclusive().map_err(|error| {
+            if error.kind() == std::io::ErrorKind::WouldBlock {
+                "requirements model is locked".to_owned()
+            } else {
+                error.to_string()
+            }
+        })?;
+        Ok(AcceptanceLock { file })
+    }
+    fn prepare_recovery_dir(&self) -> Result<(), String> {
+        self.prepare_staged_dir()?;
+        let recovery = self.recovery_dir()?;
+        if recovery.exists() {
+            let root = fs::canonicalize(&self.root).map_err(|error| error.to_string())?;
+            validate_directory(&root, &recovery, "recovery directory")?;
+        } else {
+            fs::create_dir(&recovery).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+    fn acceptance_journal_path(&self, artifact_id: &str) -> Result<PathBuf, String> {
+        validate_artifact_id(artifact_id)?;
+        Ok(self
+            .recovery_dir()?
+            .join(format!("{artifact_id}.accept.json")))
+    }
+    fn clear_acceptance_recovery(&self, artifact_id: &str) -> Result<(), String> {
+        let journal = self.acceptance_journal_path(artifact_id)?;
+        if journal.exists() {
+            fs::remove_file(journal).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+    fn complete_acceptance_after_manifest(
+        &self,
+        accepted: AcceptedRevision,
+        staged_path: &Path,
+        artifact_id: &str,
+    ) -> AcceptedRevision {
+        if fs::remove_file(staged_path).is_ok() {
+            let _ = self.clear_acceptance_recovery(artifact_id);
+        }
+        accepted
+    }
+    fn recover_acceptance(&self) -> Result<(), String> {
+        if !self.root.join(".rmwm").exists() {
+            return Ok(());
+        }
+        let _lock = self.acquire_acceptance_lock()?;
+        self.recover_acceptance_locked()
+    }
+    fn recover_acceptance_locked(&self) -> Result<(), String> {
+        if !self.root.join(".rmwm").exists() {
+            return Ok(());
+        }
+        let recovery = self.recovery_dir()?;
+        if !recovery.exists() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(recovery).map_err(|error| error.to_string())? {
+            let path = entry.map_err(|error| error.to_string())?.path();
+            let journal: AcceptanceJournal = read_json(&path, "invalid acceptance recovery")?;
+            let artifact_path = self.artifact_path(&journal.artifact_path)?;
+            let staged_path = self.staged_path(&journal.artifact_id)?;
+            let manifest = fs::read(&self.manifest_path).map_err(|error| error.to_string())?;
+            if manifest == journal.old_manifest {
+                match journal.old_artifact {
+                    Some(bytes) => {
+                        fs::write(&artifact_path, bytes).map_err(|error| error.to_string())?
+                    }
+                    None if artifact_path.exists() => {
+                        fs::remove_file(&artifact_path).map_err(|error| error.to_string())?
+                    }
+                    None => {}
+                }
+            } else if manifest == journal.new_manifest {
+                let current = self.manifest()?;
+                let descriptor = current
+                    .artifacts
+                    .get(&journal.artifact_id)
+                    .ok_or("invalid acceptance recovery manifest")?;
+                let accepted = descriptor
+                    .accepted
+                    .as_ref()
+                    .ok_or("invalid acceptance recovery manifest")?;
+                if accepted.revision != journal.candidate_revision {
+                    return Err("invalid acceptance recovery manifest".into());
+                }
+                verify_content(
+                    &fs::read(&artifact_path).map_err(|error| error.to_string())?,
+                    &accepted.content,
+                )?;
+                if staged_path.exists() {
+                    fs::remove_file(&staged_path).map_err(|error| error.to_string())?;
+                }
+            } else {
+                return Err("unresolved acceptance recovery".into());
+            }
+            remove_file_if_exists(&temporary_path(&artifact_path, "accept"))?;
+            remove_file_if_exists(&temporary_path(&self.manifest_path, "accept"))?;
+            fs::remove_file(path).map_err(|error| error.to_string())?;
+        }
+        Ok(())
     }
     fn artifact_path(&self, relative: &str) -> Result<PathBuf, String> {
         let path = Path::new(relative);
@@ -370,7 +603,7 @@ impl ModelStore {
         if candidate.revision != revision {
             return Err("staged candidate revision mismatch".into());
         }
-        self.begin_candidate(candidate.identity.clone())?;
+        self.validate_candidate(candidate.identity.clone())?;
         Ok(candidate)
     }
     fn matching_staged_candidate(
@@ -520,7 +753,9 @@ fn write_new_json<T: serde::Serialize>(path: &Path, value: &T, exists: &str) -> 
                 error.to_string()
             }
         })?;
-    file.write_all(&bytes).map_err(|error| error.to_string())
+    file.write_all(&bytes)
+        .map_err(|error| error.to_string())
+        .and_then(|_| file.sync_all().map_err(|error| error.to_string()))
 }
 
 fn replace_staged_json(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -540,6 +775,34 @@ fn replace_staged_json(path: &Path, bytes: &[u8]) -> Result<(), String> {
         let _ = fs::remove_file(&temporary_path);
     }
     result
+}
+
+fn temporary_path(path: &Path, suffix: &str) -> PathBuf {
+    path.with_extension(format!(
+        "{}.{}",
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or_default(),
+        suffix
+    ))
+}
+
+fn write_temporary_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| error.to_string())?;
+    file.write_all(bytes).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())
+}
+
+fn remove_file_if_exists(path: &Path) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -562,6 +825,73 @@ mod tests {
 
         assert!(replace_staged_json(&staged_path, b"replacement").is_err());
         assert!(!staged_path.with_extension("json.tmp").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn post_manifest_cleanup_failure_does_not_revoke_acceptance() {
+        let root = std::env::temp_dir().join(format!(
+            "rmwm-accept-cleanup-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(root.join(".rmwm/recovery")).unwrap();
+        let staged_path = root.join(".rmwm/staged/candidate.json");
+        fs::create_dir_all(&staged_path).unwrap();
+        let store = ModelStore::open(&root);
+        let artifact = root.join("domain_framing.md");
+        fs::write(&artifact, b"accepted").unwrap();
+        let accepted = AcceptedRevision {
+            revision: "sha256:accepted".into(),
+            content: ContentDescriptor {
+                digest: content_digest(b"accepted"),
+                size: b"accepted".len(),
+            },
+            sources: BTreeMap::new(),
+        };
+        let manifest = format!(
+            "schema: rmwm/requirements-model/v1\nmodel_id: test\nartifacts:\n  candidate:\n    type: domain_framing\n    representation:\n      path: domain_framing.md\n      media_type: text/markdown\n      encoding: utf-8\n      line_endings: lf\n    accepted:\n      revision: {}\n      content:\n        digest: {}\n        size: {}\n      sources: {{}}\n",
+            accepted.revision, accepted.content.digest, accepted.content.size
+        )
+        .into_bytes();
+        fs::write(root.join("requirements_model.yaml"), &manifest).unwrap();
+        let journal_path = root.join(".rmwm/recovery/candidate.accept.json");
+        let journal = AcceptanceJournal {
+            artifact_id: "candidate".into(),
+            candidate_revision: accepted.revision.clone(),
+            artifact_path: "domain_framing.md".into(),
+            old_artifact: None,
+            old_manifest: b"old manifest".to_vec(),
+            new_manifest: manifest,
+        };
+        write_new_json(&journal_path, &journal, "journal exists").unwrap();
+        let artifact_temp = temporary_path(&artifact, "accept");
+        let manifest_temp = temporary_path(&root.join("requirements_model.yaml"), "accept");
+        fs::write(&artifact_temp, b"interrupted artifact write").unwrap();
+        fs::write(&manifest_temp, b"interrupted manifest write").unwrap();
+
+        let result = store.complete_acceptance_after_manifest(
+            accepted.clone(),
+            &staged_path,
+            "raw-adc-domain-framing",
+        );
+
+        assert_eq!(result.revision, accepted.revision);
+        assert!(staged_path.exists());
+        assert!(journal_path.exists());
+        fs::remove_dir(&staged_path).unwrap();
+        fs::write(&staged_path, b"stale candidate").unwrap();
+        store.recover_acceptance().unwrap();
+        assert!(!staged_path.exists());
+        assert!(!artifact_temp.exists());
+        assert!(!manifest_temp.exists());
+        assert!(!journal_path.exists());
+        write_temporary_file(&artifact_temp, b"next artifact write").unwrap();
+        write_temporary_file(&manifest_temp, b"next manifest write").unwrap();
+        assert!(artifact_temp.exists());
+        assert!(manifest_temp.exists());
         fs::remove_dir_all(root).unwrap();
     }
 }
