@@ -61,7 +61,11 @@ impl ModelStore {
                     if !path.exists() {
                         "absent"
                     } else if self.matches_accepted(&path, accepted)? {
-                        "accepted"
+                        if self.accepted_sources_current(&manifest, accepted)? {
+                            "accepted"
+                        } else {
+                            "review_required"
+                        }
                     } else {
                         "modified"
                     }
@@ -82,6 +86,27 @@ impl ModelStore {
             model_id: manifest.model_id,
             artifacts,
         })
+    }
+
+    fn accepted_sources_current(
+        &self,
+        manifest: &Manifest,
+        accepted: &AcceptedRevision,
+    ) -> Result<bool, String> {
+        let mut has_stale_source = false;
+        for (source_id, revision) in &accepted.sources {
+            let source = manifest
+                .artifacts
+                .get(source_id)
+                .ok_or_else(|| format!("accepted source artifact does not exist: {source_id}"))?;
+            let source_accepted = source.accepted.as_ref().ok_or_else(|| {
+                format!("accepted source artifact has no accepted revision: {source_id}")
+            })?;
+            if source_accepted.revision != *revision {
+                has_stale_source = true;
+            }
+        }
+        Ok(!has_stale_source)
     }
 
     pub fn read_accepted_artifact(&self, artifact_id: &str) -> Result<serde_json::Value, String> {

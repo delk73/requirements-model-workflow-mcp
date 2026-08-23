@@ -23,7 +23,7 @@ fn fixture() -> (PathBuf, ModelStore, String) {
     let mut manifest = fs::read_to_string(dir.join("requirements_model.yaml")).unwrap();
     let start = manifest.find("  raw-adc-domain-framing:").unwrap();
     let end = manifest[start..]
-        .find("\n\n  raw-adc-domain-ontology:")
+        .find("\n  raw-adc-domain-ontology:")
         .unwrap()
         + start;
     manifest.replace_range(start..end, "  raw-adc-domain-framing:\n    type: \"domain_framing\"\n    representation:\n      path: \"domain_framing.md\"\n      media_type: \"text/markdown\"\n      encoding: \"utf-8\"\n      line_endings: \"lf\"\n    accepted: null");
@@ -516,6 +516,129 @@ fn stale_accepted_artifact_prevents_acceptance() {
     assert!(dir
         .join(".rmwm/staged/raw-adc-domain-framing.json")
         .exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn current_accepted_source_binding_reports_accepted() {
+    let (dir, store, _story_revision, _framing_revision) = accepted_target_fixture();
+    let framing = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(framing.state, "accepted");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn superseded_accepted_source_binding_reports_review_required() {
+    let (dir, store, _story_revision, _framing_revision) = accepted_target_fixture();
+    let manifest_path = dir.join("requirements_model.yaml");
+    let mut manifest: serde_yaml::Value =
+        serde_yaml::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["artifacts"]["raw-adc-story"]["accepted"]["revision"] =
+        serde_yaml::Value::String("sha256:superseded".into());
+    fs::write(&manifest_path, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+
+    let framing = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(framing.state, "review_required");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn stale_source_does_not_mask_later_malformed_source_binding() {
+    let (dir, store, _story_revision, _framing_revision) = accepted_target_fixture();
+    let manifest_path = dir.join("requirements_model.yaml");
+    let mut manifest: serde_yaml::Value =
+        serde_yaml::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["artifacts"]["raw-adc-story"]["accepted"]["revision"] =
+        serde_yaml::Value::String("sha256:stale".into());
+    manifest["artifacts"]["raw-adc-domain-framing"]["accepted"]["sources"]["zz-missing"] =
+        serde_yaml::Value::String("sha256:missing".into());
+    fs::write(&manifest_path, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+
+    assert_eq!(
+        store.inspect_model_state().unwrap_err(),
+        "accepted source artifact does not exist: zz-missing"
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn missing_accepted_source_binding_fails_inspection() {
+    let (dir, store, _story_revision, _framing_revision) = accepted_target_fixture();
+    let manifest_path = dir.join("requirements_model.yaml");
+    let mut manifest: serde_yaml::Value =
+        serde_yaml::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["artifacts"]["raw-adc-domain-framing"]["accepted"]["sources"]["missing"] =
+        serde_yaml::Value::String("sha256:missing".into());
+    fs::write(&manifest_path, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+
+    assert!(store
+        .inspect_model_state()
+        .unwrap_err()
+        .contains("does not exist"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn unaccepted_bound_source_fails_inspection() {
+    let (dir, store, _story_revision, _framing_revision) = accepted_target_fixture();
+    let manifest_path = dir.join("requirements_model.yaml");
+    let mut manifest: serde_yaml::Value =
+        serde_yaml::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["artifacts"]["raw-adc-story"]["accepted"] = serde_yaml::Value::Null;
+    fs::write(&manifest_path, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+
+    assert!(store
+        .inspect_model_state()
+        .unwrap_err()
+        .contains("has no accepted revision"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn candidate_with_superseded_bound_source_is_stale_during_inspection() {
+    let (dir, store, story_revision, framing_revision) = accepted_target_fixture();
+    let candidate = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-framing".into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(framing_revision),
+                source_revisions: BTreeMap::from([("raw-adc-story".into(), story_revision)]),
+            },
+            "# Candidate",
+        )
+        .unwrap();
+    let manifest_path = dir.join("requirements_model.yaml");
+    let mut manifest: serde_yaml::Value =
+        serde_yaml::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["artifacts"]["raw-adc-story"]["accepted"]["revision"] =
+        serde_yaml::Value::String("sha256:superseded".into());
+    fs::write(&manifest_path, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+
+    assert!(store.inspect_model_state().is_err());
+    assert_eq!(
+        store
+            .read_staged_candidate("raw-adc-domain-framing")
+            .unwrap_err(),
+        "stale or incorrect source revision for raw-adc-story"
+    );
+    assert!(dir
+        .join(".rmwm/staged/raw-adc-domain-framing.json")
+        .exists());
+    assert_ne!(candidate.revision, "sha256:superseded");
     fs::remove_dir_all(dir).unwrap();
 }
 
