@@ -26,7 +26,7 @@ fn fixture() -> (PathBuf, ModelStore, Vec<u8>) {
     let mut manifest = fs::read_to_string(dir.join("requirements_model.yaml")).unwrap();
     let start = manifest.find("  raw-adc-domain-framing:").unwrap();
     let end = manifest[start..]
-        .find("\n\n  raw-adc-domain-ontology:")
+        .find("\n  raw-adc-domain-ontology:")
         .unwrap()
         + start;
     manifest.replace_range(start..end, "  raw-adc-domain-framing:\n    type: \"domain_framing\"\n    representation:\n      path: \"domain_framing.md\"\n      media_type: \"text/markdown\"\n      encoding: \"utf-8\"\n      line_endings: \"lf\"\n    accepted: null");
