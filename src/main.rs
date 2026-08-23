@@ -61,6 +61,16 @@ fn tools() -> Value {
             }
         },
         {
+            "name": "report_affected_downstream_artifacts",
+            "description": "Report direct accepted downstream artifacts whose bound source revision differs from the requested artifact's current accepted revision.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"artifact_id": {"type": "string"}},
+                "required": ["artifact_id"],
+                "additionalProperties": false
+            }
+        },
+        {
             "name": "begin_candidate",
             "description": "Validate a proposed candidate identity and its target and source revision bindings without staging or modifying records.",
             "inputSchema": candidate.clone()
@@ -168,6 +178,12 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
                             .and_then(Value::as_str)
                             .ok_or_else(|| "missing artifact_id".to_owned())?,
                     ),
+                    "report_affected_downstream_artifacts" => {
+                        serde_json::to_value(store.report_affected_downstream_artifacts(
+                            required_string(&args, "artifact_id")?,
+                        )?)
+                        .map_err(|error| error.to_string())
+                    }
                     "begin_candidate" => {
                         let identity: CandidateIdentity =
                             serde_json::from_value(args).map_err(|error| error.to_string())?;
@@ -396,6 +412,26 @@ mod tests {
         };
         let identity_value = serde_json::to_value(&identity).unwrap();
         assert!(dispatch(&store, &request("begin_candidate", identity_value.clone())).is_ok());
+        let tools = super::tools();
+        let report_tool = tools["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tool| tool["name"] == "report_affected_downstream_artifacts")
+            .unwrap();
+        assert_eq!(
+            report_tool["inputSchema"]["required"],
+            json!(["artifact_id"])
+        );
+        let report = dispatch(
+            &store,
+            &request(
+                "report_affected_downstream_artifacts",
+                json!({"artifact_id": "raw-adc-story"}),
+            ),
+        )
+        .unwrap();
+        assert_eq!(report["structuredContent"]["artifact_id"], "raw-adc-story");
         assert!(dispatch(
             &store,
             &request(

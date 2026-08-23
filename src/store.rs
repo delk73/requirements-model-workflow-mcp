@@ -109,6 +109,44 @@ impl ModelStore {
         Ok(!has_stale_source)
     }
 
+    pub fn report_affected_downstream_artifacts(
+        &self,
+        artifact_id: &str,
+    ) -> Result<crate::model::AffectedDownstreamArtifactsReport, String> {
+        self.recover_acceptance()?;
+        let manifest = self.manifest()?;
+        let requested = manifest
+            .artifacts
+            .get(artifact_id)
+            .ok_or_else(|| "unknown artifact".to_owned())?;
+        let accepted = requested
+            .accepted
+            .as_ref()
+            .ok_or_else(|| "artifact has no accepted revision".to_owned())?;
+        let accepted_revision = accepted.revision.clone();
+        let mut affected_artifacts = Vec::new();
+        for (dependent_id, dependent) in &manifest.artifacts {
+            let Some(dependent_accepted) = dependent.accepted.as_ref() else {
+                continue;
+            };
+            let Some(bound_source_revision) = dependent_accepted.sources.get(artifact_id) else {
+                continue;
+            };
+            if bound_source_revision != &accepted_revision {
+                affected_artifacts.push(crate::model::AffectedDownstreamArtifact {
+                    artifact_id: dependent_id.clone(),
+                    bound_source_revision: bound_source_revision.clone(),
+                    current_source_revision: accepted_revision.clone(),
+                });
+            }
+        }
+        Ok(crate::model::AffectedDownstreamArtifactsReport {
+            artifact_id: artifact_id.into(),
+            accepted_revision,
+            affected_artifacts,
+        })
+    }
+
     pub fn read_accepted_artifact(&self, artifact_id: &str) -> Result<serde_json::Value, String> {
         self.recover_acceptance()?;
         let manifest = self.manifest()?;

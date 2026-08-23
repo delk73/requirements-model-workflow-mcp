@@ -534,6 +534,19 @@ fn current_accepted_source_binding_reports_accepted() {
 }
 
 #[test]
+fn current_direct_dependent_is_not_reported() {
+    let (dir, store, story_revision, _framing_revision) = accepted_target_fixture();
+
+    let report = store
+        .report_affected_downstream_artifacts("raw-adc-story")
+        .unwrap();
+    assert_eq!(report.artifact_id, "raw-adc-story");
+    assert_eq!(report.accepted_revision, story_revision);
+    assert!(report.affected_artifacts.is_empty());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn superseded_accepted_source_binding_reports_review_required() {
     let (dir, store, _story_revision, _framing_revision) = accepted_target_fixture();
     let manifest_path = dir.join("requirements_model.yaml");
@@ -551,6 +564,81 @@ fn superseded_accepted_source_binding_reports_review_required() {
         .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
         .unwrap();
     assert_eq!(framing.state, "review_required");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn stale_direct_dependent_is_reported_with_both_revisions() {
+    let (dir, store, story_revision, prior_framing_revision) = accepted_target_fixture();
+    let candidate = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-framing".into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(prior_framing_revision.clone()),
+                source_revisions: BTreeMap::from([("raw-adc-story".into(), story_revision)]),
+            },
+            "# Revised framing",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-framing", &candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-framing",
+            &candidate.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+    let accepted = store
+        .accept_candidate("raw-adc-domain-framing", &candidate.revision)
+        .unwrap();
+
+    let report = store
+        .report_affected_downstream_artifacts("raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(report.accepted_revision, accepted.revision);
+    let ontology = report
+        .affected_artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+        .unwrap();
+    assert_eq!(ontology.bound_source_revision, prior_framing_revision);
+    assert_eq!(ontology.current_source_revision, accepted.revision);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn unrelated_accepted_artifact_is_not_reported() {
+    let (dir, store, _story_revision, framing_revision) = accepted_target_fixture();
+
+    let report = store
+        .report_affected_downstream_artifacts("raw-adc-domain-framing")
+        .unwrap();
+    assert_eq!(report.accepted_revision, framing_revision);
+    assert!(report.affected_artifacts.is_empty());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn report_requires_an_accepted_artifact() {
+    let (dir, store, _story_revision) = fixture();
+    assert_eq!(
+        store
+            .report_affected_downstream_artifacts("raw-adc-domain-framing")
+            .unwrap_err(),
+        "artifact has no accepted revision"
+    );
+    assert_eq!(
+        store
+            .report_affected_downstream_artifacts("missing")
+            .unwrap_err(),
+        "unknown artifact"
+    );
     fs::remove_dir_all(dir).unwrap();
 }
 

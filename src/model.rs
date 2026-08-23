@@ -54,6 +54,20 @@ pub struct ModelState {
     pub artifacts: Vec<ArtifactState>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct AffectedDownstreamArtifact {
+    pub artifact_id: String,
+    pub bound_source_revision: String,
+    pub current_source_revision: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AffectedDownstreamArtifactsReport {
+    pub artifact_id: String,
+    pub accepted_revision: String,
+    pub affected_artifacts: Vec<AffectedDownstreamArtifact>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CandidateIdentity {
     pub model_id: String,
