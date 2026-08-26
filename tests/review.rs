@@ -109,6 +109,322 @@ fn stage(
         .unwrap()
 }
 
+fn ontology_identity(target_revision: String, framing_revision: String) -> CandidateIdentity {
+    CandidateIdentity {
+        model_id: "raw-adc".into(),
+        artifact_id: "raw-adc-domain-ontology".into(),
+        artifact_type: "domain_ontology".into(),
+        target_revision: Some(target_revision),
+        source_revisions: BTreeMap::from([("raw-adc-domain-framing".into(), framing_revision)]),
+    }
+}
+
+fn accepted_ontology_revision(store: &ModelStore) -> String {
+    store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+        .unwrap()
+        .descriptor
+        .accepted
+        .unwrap()
+        .revision
+}
+
+#[test]
+fn ontology_candidate_requires_exactly_one_current_framing_source() {
+    let (dir, store, _story_revision, framing_revision) = accepted_target_fixture();
+    let ontology_revision = accepted_ontology_revision(&store);
+
+    store
+        .begin_candidate(ontology_identity(
+            ontology_revision.clone(),
+            framing_revision.clone(),
+        ))
+        .unwrap();
+
+    let mut missing = ontology_identity(ontology_revision.clone(), framing_revision.clone());
+    missing.source_revisions.clear();
+    assert!(store
+        .begin_candidate(missing)
+        .unwrap_err()
+        .contains("exactly one source"));
+
+    let mut multiple = ontology_identity(ontology_revision.clone(), framing_revision.clone());
+    multiple
+        .source_revisions
+        .insert("raw-adc-story".into(), "sha256:story".into());
+    assert!(store
+        .begin_candidate(multiple)
+        .unwrap_err()
+        .contains("exactly one source"));
+
+    let mut wrong_type = ontology_identity(ontology_revision.clone(), framing_revision.clone());
+    wrong_type.source_revisions.clear();
+    wrong_type
+        .source_revisions
+        .insert("raw-adc-story".into(), "sha256:story".into());
+    assert!(store
+        .begin_candidate(wrong_type)
+        .unwrap_err()
+        .contains("domain ontology source must be a domain framing"));
+
+    let stale_source = ontology_identity(ontology_revision, "sha256:stale".into());
+    assert!(store
+        .begin_candidate(stale_source)
+        .unwrap_err()
+        .contains("stale or incorrect source revision"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn ontology_candidate_rejects_stale_target_revision() {
+    let (dir, store, _story_revision, framing_revision) = accepted_target_fixture();
+    let identity = ontology_identity("sha256:stale".into(), framing_revision);
+    assert!(store
+        .begin_candidate(identity)
+        .unwrap_err()
+        .contains("stale or incorrect target revision"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn ontology_candidate_can_be_staged_read_reviewed_and_rejected() {
+    let (dir, store, _story_revision, framing_revision) = accepted_target_fixture();
+    let candidate = store
+        .stage_candidate(
+            ontology_identity(accepted_ontology_revision(&store), framing_revision),
+            "# Revised ontology",
+        )
+        .unwrap();
+    assert_eq!(
+        store
+            .read_staged_candidate("raw-adc-domain-ontology")
+            .unwrap()
+            .bytes,
+        candidate.bytes
+    );
+    store
+        .begin_candidate_review("raw-adc-domain-ontology", &candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-ontology",
+            &candidate.revision,
+            "rejected",
+            "reviewer".into(),
+            Some("needs revision".into()),
+        )
+        .unwrap();
+    assert_eq!(
+        store
+            .inspect_model_state()
+            .unwrap()
+            .artifacts
+            .into_iter()
+            .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+            .unwrap()
+            .state,
+        "rejected"
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn approved_ontology_candidate_updates_only_ontology_and_binds_new_framing() {
+    let (dir, store, _story_revision, framing_revision) = accepted_target_fixture();
+    let framing_before = fs::read(dir.join("domain_framing.md")).unwrap();
+    let story_before = fs::read(dir.join("story.md")).unwrap();
+    let candidate = store
+        .stage_candidate(
+            ontology_identity(accepted_ontology_revision(&store), framing_revision.clone()),
+            "# Accepted revised ontology",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-ontology", &candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-ontology",
+            &candidate.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+    let accepted = store
+        .accept_candidate("raw-adc-domain-ontology", &candidate.revision)
+        .unwrap();
+
+    assert_eq!(accepted.content, candidate.content);
+    assert_eq!(
+        fs::read(dir.join("domain_ontology.md")).unwrap(),
+        candidate.bytes
+    );
+    assert_eq!(
+        accepted.sources.get("raw-adc-domain-framing"),
+        Some(&framing_revision)
+    );
+    assert_eq!(
+        fs::read(dir.join("domain_framing.md")).unwrap(),
+        framing_before
+    );
+    assert_eq!(fs::read(dir.join("story.md")).unwrap(), story_before);
+    let ontology = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+        .unwrap();
+    assert_eq!(ontology.state, "accepted");
+    assert_eq!(
+        ontology.descriptor.accepted.unwrap().revision,
+        candidate.revision
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn revised_framing_can_be_followed_by_ontology_reacceptance() {
+    let (dir, store, story_revision, framing_a_revision) = accepted_target_fixture();
+    let ontology_o_revision = accepted_ontology_revision(&store);
+    let framing_before = fs::read(dir.join("domain_framing.md")).unwrap();
+    let story_before = fs::read(dir.join("story.md")).unwrap();
+
+    let framing_candidate = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-framing".into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(framing_a_revision.clone()),
+                source_revisions: BTreeMap::from([(
+                    "raw-adc-story".into(),
+                    story_revision.clone(),
+                )]),
+            },
+            "# Framing B",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-framing", &framing_candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-framing",
+            &framing_candidate.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+    let framing_b = store
+        .accept_candidate("raw-adc-domain-framing", &framing_candidate.revision)
+        .unwrap();
+    assert_eq!(framing_b.revision, framing_candidate.revision);
+
+    let state = store.inspect_model_state().unwrap();
+    let ontology_after_framing = state
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+        .unwrap();
+    assert_eq!(ontology_after_framing.state, "review_required");
+    assert_eq!(
+        ontology_after_framing
+            .descriptor
+            .accepted
+            .as_ref()
+            .unwrap()
+            .revision,
+        ontology_o_revision
+    );
+    assert_eq!(
+        ontology_after_framing
+            .descriptor
+            .accepted
+            .as_ref()
+            .unwrap()
+            .sources
+            .get("raw-adc-domain-framing"),
+        Some(&framing_a_revision)
+    );
+
+    let ontology_candidate = store
+        .stage_candidate(
+            ontology_identity(ontology_o_revision, framing_b.revision.clone()),
+            "# Ontology O revised for framing B",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-ontology", &ontology_candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-ontology",
+            &ontology_candidate.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+    let ontology_accepted = store
+        .accept_candidate("raw-adc-domain-ontology", &ontology_candidate.revision)
+        .unwrap();
+
+    assert_eq!(ontology_accepted.revision, ontology_candidate.revision);
+    assert_eq!(
+        ontology_accepted.sources.get("raw-adc-domain-framing"),
+        Some(&framing_b.revision)
+    );
+    assert_eq!(
+        fs::read(dir.join("domain_framing.md")).unwrap(),
+        framing_candidate.bytes
+    );
+    assert_eq!(fs::read(dir.join("story.md")).unwrap(), story_before);
+    assert_eq!(
+        store
+            .inspect_model_state()
+            .unwrap()
+            .artifacts
+            .into_iter()
+            .find(|artifact| artifact.artifact_id == "raw-adc-domain-framing")
+            .unwrap()
+            .descriptor
+            .accepted
+            .unwrap()
+            .revision,
+        framing_b.revision
+    );
+    assert_eq!(
+        store
+            .inspect_model_state()
+            .unwrap()
+            .artifacts
+            .into_iter()
+            .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+            .unwrap()
+            .state,
+        "accepted"
+    );
+    assert!(store
+        .report_affected_downstream_artifacts("raw-adc-domain-framing")
+        .unwrap()
+        .affected_artifacts
+        .is_empty());
+    assert_eq!(
+        fs::read(dir.join("domain_framing.md")).unwrap(),
+        framing_candidate.bytes
+    );
+    assert_eq!(fs::read(dir.join("story.md")).unwrap(), story_before);
+    assert_ne!(framing_before, framing_candidate.bytes);
+    fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn exact_staged_candidate_can_be_read_and_reviewed_without_mutating_inputs() {
     let (dir, store, revision) = fixture();

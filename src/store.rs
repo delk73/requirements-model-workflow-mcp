@@ -183,8 +183,10 @@ impl ModelStore {
             .artifacts
             .get(&identity.artifact_id)
             .ok_or_else(|| "unknown artifact".to_owned())?;
-        if descriptor.artifact_type != "domain_framing" {
-            return Err("only domain framing candidates are supported".into());
+        if descriptor.artifact_type != "domain_framing"
+            && descriptor.artifact_type != "domain_ontology"
+        {
+            return Err("only domain framing and domain ontology candidates are supported".into());
         }
         if descriptor.artifact_type != identity.artifact_type {
             return Err("artifact type mismatch".into());
@@ -199,17 +201,28 @@ impl ModelStore {
         if descriptor.accepted.is_some() {
             self.ensure_current(&identity.artifact_id, descriptor)?;
         }
-        if identity.artifact_type == "domain_framing" && identity.source_revisions.len() != 1 {
-            return Err("domain framing requires exactly one source".into());
+        if (identity.artifact_type == "domain_framing"
+            || identity.artifact_type == "domain_ontology")
+            && identity.source_revisions.len() != 1
+        {
+            return Err(format!(
+                "{} requires exactly one source",
+                identity.artifact_type.replace('_', " ")
+            ));
         }
         for (source_id, revision) in &identity.source_revisions {
             let source = manifest
                 .artifacts
                 .get(source_id)
                 .ok_or_else(|| format!("unknown source {source_id}"))?;
-            if identity.artifact_type == "domain_framing" && source.artifact_type != "system_story"
-            {
-                return Err("domain framing source must be a system story".into());
+            match identity.artifact_type.as_str() {
+                "domain_framing" if source.artifact_type != "system_story" => {
+                    return Err("domain framing source must be a system story".into());
+                }
+                "domain_ontology" if source.artifact_type != "domain_framing" => {
+                    return Err("domain ontology source must be a domain framing".into());
+                }
+                _ => {}
             }
             if source.accepted.as_ref().map(|accepted| &accepted.revision) != Some(revision) {
                 return Err(format!(
