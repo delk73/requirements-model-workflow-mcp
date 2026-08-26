@@ -52,10 +52,14 @@ fn tools() -> Value {
         },
         {
             "name": "read_accepted_artifact",
-            "description": "Read the exact UTF-8 text and accepted revision descriptor for one accepted artifact without modifying it.",
+            "description": "Read the exact UTF-8 text and accepted revision descriptor for one accepted artifact without modifying it. Optionally bound the returned text to an inclusive 1-based line range.",
             "inputSchema": {
                 "type": "object",
-                "properties": {"artifact_id": {"type": "string"}},
+                "properties": {
+                    "artifact_id": {"type": "string"},
+                    "start_line": {"type": "integer", "minimum": 1},
+                    "end_line": {"type": "integer", "minimum": 1}
+                },
                 "required": ["artifact_id"],
                 "additionalProperties": false
             }
@@ -93,10 +97,14 @@ fn tools() -> Value {
         },
         {
             "name": "read_staged_candidate",
-            "description": "Read and validate the currently staged candidate's exact UTF-8 text for an artifact without modifying it.",
+            "description": "Read and validate the currently staged candidate's exact UTF-8 text for an artifact without modifying it. Optionally bound the returned text to an inclusive 1-based line range.",
             "inputSchema": {
                 "type": "object",
-                "properties": {"artifact_id": {"type": "string"}},
+                "properties": {
+                    "artifact_id": {"type": "string"},
+                    "start_line": {"type": "integer", "minimum": 1},
+                    "end_line": {"type": "integer", "minimum": 1}
+                },
                 "required": ["artifact_id"],
                 "additionalProperties": false
             }
@@ -173,11 +181,14 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
                 match name {
                     "inspect_model_state" => serde_json::to_value(store.inspect_model_state()?)
                         .map_err(|error| error.to_string()),
-                    "read_accepted_artifact" => store.read_accepted_artifact(
-                        args.get("artifact_id")
-                            .and_then(Value::as_str)
-                            .ok_or_else(|| "missing artifact_id".to_owned())?,
-                    ),
+                    "read_accepted_artifact" => {
+                        serde_json::to_value(store.read_accepted_artifact(
+                            required_string(&args, "artifact_id")?,
+                            optional_line_number(&args, "start_line")?,
+                            optional_line_number(&args, "end_line")?,
+                        )?)
+                        .map_err(|error| error.to_string())
+                    }
                     "report_affected_downstream_artifacts" => {
                         serde_json::to_value(store.report_affected_downstream_artifacts(
                             required_string(&args, "artifact_id")?,
@@ -206,8 +217,10 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
                         )?)
                         .map_err(|error| error.to_string())
                     }
-                    "read_staged_candidate" => serde_json::to_value(staged_candidate_view(
-                        store.read_staged_candidate(required_string(&args, "artifact_id")?)?,
+                    "read_staged_candidate" => serde_json::to_value(store.read_staged_candidate(
+                        required_string(&args, "artifact_id")?,
+                        optional_line_number(&args, "start_line")?,
+                        optional_line_number(&args, "end_line")?,
                     )?)
                     .map_err(|error| error.to_string()),
                     "begin_candidate_review" => {
@@ -258,6 +271,9 @@ fn staged_candidate_view(candidate: StagedCandidate) -> Result<StagedCandidateVi
         revision,
         supersedes,
         state,
+        total_lines: None,
+        start_line: None,
+        end_line: None,
     })
 }
 
@@ -273,6 +289,24 @@ fn optional_string(value: &Value, key: &str) -> Result<Option<String>, String> {
         None => Ok(None),
         Some(Value::String(value)) => Ok(Some(value.clone())),
         Some(_) => Err(format!("{key} must be a string")),
+    }
+}
+
+fn optional_line_number(value: &Value, key: &str) -> Result<Option<usize>, String> {
+    match value.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(number)) => {
+            let raw = number
+                .as_u64()
+                .ok_or_else(|| format!("{key} must be a positive integer"))?;
+            if raw == 0 {
+                return Err(format!("{key} must be >= 1"));
+            }
+            usize::try_from(raw)
+                .map(Some)
+                .map_err(|error| error.to_string())
+        }
+        Some(_) => Err(format!("{key} must be a positive integer")),
     }
 }
 
@@ -500,6 +534,60 @@ mod tests {
             staged["structuredContent"]["text"]
         );
         assert!(read["structuredContent"].get("bytes").is_none());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn read_accepted_artifact_schema_exposes_optional_line_range_parameters() {
+        let tools = super::tools();
+        let tool = tools["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tool| tool["name"] == "read_accepted_artifact")
+            .unwrap();
+        assert_eq!(tool["inputSchema"]["required"], json!(["artifact_id"]));
+        assert_eq!(
+            tool["inputSchema"]["properties"]["start_line"],
+            json!({"type": "integer", "minimum": 1})
+        );
+        assert_eq!(
+            tool["inputSchema"]["properties"]["end_line"],
+            json!({"type": "integer", "minimum": 1})
+        );
+    }
+
+    #[test]
+    fn dispatch_returns_structured_ranged_content_for_read_accepted_artifact() {
+        let (dir, store, _story_revision) = model();
+        let request = |name: &str, arguments: serde_json::Value| super::JsonRpcRequest {
+            jsonrpc: "2.0".into(),
+            id: Some(json!(1)),
+            method: "tools/call".into(),
+            params: json!({"name": name, "arguments": arguments}),
+        };
+        let ranged = dispatch(
+            &store,
+            &request(
+                "read_accepted_artifact",
+                json!({"artifact_id": "raw-adc-story", "start_line": 1, "end_line": 1}),
+            ),
+        )
+        .unwrap();
+        assert_eq!(ranged["structuredContent"]["text"], "---\n");
+        assert_eq!(ranged["structuredContent"]["start_line"], 1);
+        assert_eq!(ranged["structuredContent"]["end_line"], 1);
+        assert_eq!(ranged["structuredContent"]["total_lines"], 14);
+
+        let rejected = dispatch(
+            &store,
+            &request(
+                "read_accepted_artifact",
+                json!({"artifact_id": "raw-adc-story", "end_line": 3}),
+            ),
+        )
+        .unwrap();
+        assert_eq!(rejected["isError"], true);
         fs::remove_dir_all(dir).unwrap();
     }
 }

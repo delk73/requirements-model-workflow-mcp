@@ -50,8 +50,10 @@ fn raw_adc_story_reaches_staged_boundary_without_mutating_story() {
             .state,
         "accepted"
     );
-    let accepted = store.read_accepted_artifact("raw-adc-story").unwrap();
-    assert_eq!(accepted["text"].as_str().unwrap().as_bytes(), story);
+    let accepted = store
+        .read_accepted_artifact("raw-adc-story", None, None)
+        .unwrap();
+    assert_eq!(accepted.text.as_bytes(), story);
     let story_revision = state
         .artifacts
         .iter()
@@ -390,7 +392,9 @@ fn symlink_artifact_path_cannot_escape_model_root() {
     fs::write(&outside, b"outside").unwrap();
     fs::remove_file(dir.join("story.md")).unwrap();
     symlink(&outside, dir.join("story.md")).unwrap();
-    assert!(store.read_accepted_artifact("raw-adc-story").is_err());
+    assert!(store
+        .read_accepted_artifact("raw-adc-story", None, None)
+        .is_err());
     fs::remove_file(dir.join("story.md")).unwrap();
     fs::remove_file(outside).unwrap();
     fs::remove_dir_all(dir).unwrap();
@@ -429,9 +433,13 @@ fn altered_or_missing_accepted_artifact_is_rejected() {
         [story.as_slice(), b"changed"].concat(),
     )
     .unwrap();
-    assert!(store.read_accepted_artifact("raw-adc-story").is_err());
+    assert!(store
+        .read_accepted_artifact("raw-adc-story", None, None)
+        .is_err());
     fs::remove_file(dir.join("story.md")).unwrap();
-    assert!(store.read_accepted_artifact("raw-adc-story").is_err());
+    assert!(store
+        .read_accepted_artifact("raw-adc-story", None, None)
+        .is_err());
     fs::remove_dir_all(dir).unwrap();
 }
 
@@ -562,4 +570,241 @@ fn digest_and_revision_handles_are_deterministic_and_source_ordered() {
         &[("b".into(), "1".into()), ("z".into(), "2".into())],
     );
     assert_eq!(first, second);
+}
+
+fn full_raw_adc_fixture() -> (PathBuf, ModelStore) {
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
+    let dir = std::env::temp_dir().join(format!(
+        "rmwm-ranged-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    for name in [
+        "requirements_model.yaml",
+        "story.md",
+        "domain_framing.md",
+        "domain_ontology.md",
+    ] {
+        fs::copy(source.join(name), dir.join(name)).unwrap();
+    }
+    let store = ModelStore::open(&dir);
+    (dir, store)
+}
+
+#[test]
+fn unbounded_read_is_unchanged_when_no_range_is_supplied() {
+    let (dir, store, story) = fixture();
+    let read = store
+        .read_accepted_artifact("raw-adc-story", None, None)
+        .unwrap();
+    assert_eq!(read.text.as_bytes(), story.as_slice());
+    assert!(read.total_lines.is_none());
+    assert!(read.start_line.is_none());
+    assert!(read.end_line.is_none());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn bounded_first_line_range_returns_only_that_line() {
+    let (dir, store, _story) = fixture();
+    let read = store
+        .read_accepted_artifact("raw-adc-story", Some(1), Some(1))
+        .unwrap();
+    assert_eq!(read.text, "---\n");
+    assert_eq!(read.start_line, Some(1));
+    assert_eq!(read.end_line, Some(1));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn bounded_middle_range_returns_exact_lines() {
+    let (dir, store, _story) = fixture();
+    let read = store
+        .read_accepted_artifact("raw-adc-story", Some(8), Some(8))
+        .unwrap();
+    assert_eq!(read.text, "# Raw ADC Capture Story\n");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn bounded_multi_line_range_returns_exact_text() {
+    let (dir, store, _story) = fixture();
+    let read = store
+        .read_accepted_artifact("raw-adc-story", Some(2), Some(5))
+        .unwrap();
+    let expected =
+        "rmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-story\"\n  type: \"system_story\"\n";
+    assert_eq!(read.text, expected);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn start_only_range_returns_through_eof() {
+    let (dir, store, _story) = fixture();
+    let read = store
+        .read_accepted_artifact("raw-adc-story", Some(12), None)
+        .unwrap();
+    assert_eq!(read.start_line, Some(12));
+    assert_eq!(read.end_line, read.total_lines);
+    assert!(read.text.starts_with("For each captured sample"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn end_line_without_start_line_is_rejected() {
+    let (dir, store, _story) = fixture();
+    let error = store
+        .read_accepted_artifact("raw-adc-story", None, Some(3))
+        .unwrap_err();
+    assert!(error.contains("start_line"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn reversed_range_is_rejected() {
+    let (dir, store, _story) = fixture();
+    let error = store
+        .read_accepted_artifact("raw-adc-story", Some(5), Some(2))
+        .unwrap_err();
+    assert!(error.contains("start_line"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn start_line_beyond_eof_is_rejected() {
+    let (dir, store, _story) = fixture();
+    let error = store
+        .read_accepted_artifact("raw-adc-story", Some(1000), None)
+        .unwrap_err();
+    assert!(error.contains("beyond"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn end_line_beyond_eof_clamps_to_eof() {
+    let (dir, store, _story) = fixture();
+    let read = store
+        .read_accepted_artifact("raw-adc-story", Some(1), Some(1000))
+        .unwrap();
+    assert_eq!(read.end_line, read.total_lines);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn ranged_metadata_reports_correct_totals() {
+    let (dir, store, _story) = fixture();
+    let read = store
+        .read_accepted_artifact("raw-adc-story", Some(3), Some(6))
+        .unwrap();
+    assert_eq!(read.total_lines, Some(14));
+    assert_eq!(read.start_line, Some(3));
+    assert_eq!(read.end_line, Some(6));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn ranged_read_reports_same_accepted_descriptor_as_unbounded_read() {
+    let (dir, store, _story) = fixture();
+    let unbounded = store
+        .read_accepted_artifact("raw-adc-story", None, None)
+        .unwrap();
+    let ranged = store
+        .read_accepted_artifact("raw-adc-story", Some(1), Some(3))
+        .unwrap();
+    assert_eq!(unbounded.descriptor.revision, ranged.descriptor.revision);
+    assert_eq!(
+        unbounded.descriptor.content.digest,
+        ranged.descriptor.content.digest
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn ranged_reads_do_not_mutate_artifact_bytes_on_disk() {
+    let (dir, store, story) = fixture();
+    let _ = store
+        .read_accepted_artifact("raw-adc-story", Some(2), Some(9))
+        .unwrap();
+    let _ = store
+        .read_accepted_artifact("raw-adc-story", Some(1), None)
+        .unwrap();
+    assert_eq!(fs::read(dir.join("story.md")).unwrap(), story);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn unknown_artifact_range_behavior_matches_unbounded_behavior() {
+    let (dir, store, _story) = fixture();
+    let unbounded_error = store
+        .read_accepted_artifact("missing", None, None)
+        .unwrap_err();
+    let ranged_error = store
+        .read_accepted_artifact("missing", Some(1), Some(2))
+        .unwrap_err();
+    assert_eq!(unbounded_error, "unknown artifact");
+    assert_eq!(ranged_error, "unknown artifact");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn unaccepted_artifact_range_behavior_matches_unbounded_behavior() {
+    let (dir, store, _story) = fixture();
+    let unbounded_error = store
+        .read_accepted_artifact("raw-adc-domain-framing", None, None)
+        .unwrap_err();
+    let ranged_error = store
+        .read_accepted_artifact("raw-adc-domain-framing", Some(1), Some(2))
+        .unwrap_err();
+    assert_eq!(unbounded_error, "artifact has no accepted revision");
+    assert_eq!(ranged_error, "artifact has no accepted revision");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn large_ontology_fixture_is_consumable_through_bounded_mcp_reads() {
+    let (dir, store) = full_raw_adc_fixture();
+    let ontology_bytes = fs::read(dir.join("domain_ontology.md")).unwrap();
+    assert!(
+        ontology_bytes.len() > 16_000,
+        "regression requires the real ~17 KB raw-ADC ontology fixture"
+    );
+
+    let chunk_a = store
+        .read_accepted_artifact("raw-adc-domain-ontology", Some(1), Some(40))
+        .unwrap();
+    let chunk_b = store
+        .read_accepted_artifact("raw-adc-domain-ontology", Some(41), Some(80))
+        .unwrap();
+    let chunk_c = store
+        .read_accepted_artifact("raw-adc-domain-ontology", Some(81), Some(120))
+        .unwrap();
+    let chunk_d = store
+        .read_accepted_artifact("raw-adc-domain-ontology", Some(121), Some(141))
+        .unwrap();
+    let chunk_e = store
+        .read_accepted_artifact("raw-adc-domain-ontology", Some(142), None)
+        .unwrap();
+
+    let chunks = [&chunk_a, &chunk_b, &chunk_c, &chunk_d, &chunk_e];
+    for chunk in chunks {
+        assert!(
+            chunk.text.len() < ontology_bytes.len() / 2,
+            "each bounded read must return a small fraction of the ~17 KB artifact, not the whole text"
+        );
+        assert_eq!(chunk.descriptor.revision, chunk_a.descriptor.revision);
+    }
+    assert_eq!(chunk_b.total_lines, chunk_a.total_lines);
+    assert_eq!(chunk_e.total_lines, chunk_a.total_lines);
+    assert_eq!(chunk_e.end_line, chunk_e.total_lines);
+
+    // "Each Sample Timing Observation belongs to exactly one Captured Sample." lives on line 69,
+    // inside chunk_b, and must be readable intact from a bounded range.
+    assert!(chunk_b
+        .text
+        .contains("Each Sample Timing Observation belongs to exactly one Captured Sample."));
+
+    fs::remove_dir_all(dir).unwrap();
 }

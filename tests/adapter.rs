@@ -36,6 +36,7 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"begin_candidate","arguments":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"}}}}),
         json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"stage_candidate","arguments":{"candidate":{"model_id":"raw-adc","artifact_id":"raw-adc-domain-framing","artifact_type":"domain_framing","target_revision":null,"source_revisions":{"raw-adc-story":"sha256:d9fc45a0fae8dccf8c4a6ddc7f13d1c4604775b0d1f03abfa92d8f4ec1ffe0ae"}},"body":"# Framing"}}}),
         json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"read_staged_candidate","arguments":{"artifact_id":"raw-adc-domain-framing"}}}),
+        json!({"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"read_staged_candidate","arguments":{"artifact_id":"raw-adc-domain-framing","start_line":1,"end_line":2}}}),
         json!({"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"begin_candidate_review","arguments":{"artifact_id":"raw-adc-domain-framing","candidate_revision":"sha256:PLACEHOLDER"}}}),
         json!({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"record_candidate_decision","arguments":{"artifact_id":"raw-adc-domain-framing","candidate_revision":"sha256:PLACEHOLDER","decision":"approved","decided_by":"reviewer"}}}),
         json!({"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"read_accepted_artifact","arguments":{"artifact_id":"missing"}}}),
@@ -74,7 +75,7 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
-    assert_eq!(responses.len(), 15);
+    assert_eq!(responses.len(), 16);
 
     let instructions = responses[0]["result"]["instructions"].as_str().unwrap();
     assert!(instructions.contains("MCP STDIO server, not a CLI"));
@@ -110,14 +111,38 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
         decision["inputSchema"]["properties"]["decision"]["enum"],
         json!(["approved", "rejected"])
     );
+    let staged_read = tools
+        .iter()
+        .find(|tool| tool["name"] == "read_staged_candidate")
+        .unwrap();
+    assert_eq!(
+        staged_read["inputSchema"]["required"],
+        json!(["artifact_id"])
+    );
+    assert_eq!(
+        staged_read["inputSchema"]["properties"]["start_line"]["minimum"],
+        json!(1)
+    );
+    assert_eq!(
+        staged_read["inputSchema"]["properties"]["end_line"]["minimum"],
+        json!(1)
+    );
 
-    for response in &responses[2..9] {
+    for response in &responses[2..10] {
         let result = response.get("result").unwrap();
         assert!(result.get("content").unwrap().is_array());
         assert!(result.get("structuredContent").is_some());
         assert_ne!(result.get("isError"), Some(&Value::Bool(true)));
     }
-    for response in &responses[9..] {
+    assert_eq!(
+        responses[7]["result"]["structuredContent"]["start_line"],
+        json!(1)
+    );
+    assert_eq!(
+        responses[7]["result"]["structuredContent"]["end_line"],
+        json!(2)
+    );
+    for response in &responses[10..] {
         let error_result = response.get("result").unwrap();
         assert_eq!(error_result.get("isError"), Some(&Value::Bool(true)));
         assert!(response.get("error").is_none());

@@ -1,8 +1,9 @@
 use crate::{
     digest::{content_digest, revision_handle},
     model::{
-        AcceptedRevision, ArtifactState, CandidateDecision, CandidateIdentity,
-        CandidateReviewRequest, ContentDescriptor, Manifest, ModelState, StagedCandidate,
+        AcceptedArtifactRead, AcceptedRevision, ArtifactState, CandidateDecision,
+        CandidateIdentity, CandidateReviewRequest, ContentDescriptor, Manifest, ModelState,
+        StagedCandidate,
     },
 };
 use fs2::FileExt;
@@ -147,7 +148,12 @@ impl ModelStore {
         })
     }
 
-    pub fn read_accepted_artifact(&self, artifact_id: &str) -> Result<serde_json::Value, String> {
+    pub fn read_accepted_artifact(
+        &self,
+        artifact_id: &str,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
+    ) -> Result<AcceptedArtifactRead, String> {
         self.recover_acceptance()?;
         let manifest = self.manifest()?;
         let descriptor = manifest
@@ -162,7 +168,33 @@ impl ModelStore {
         let bytes = fs::read(&path).map_err(|error| error.to_string())?;
         verify_content(&bytes, &accepted.content)?;
         let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
-        Ok(serde_json::json!({"artifact_id": artifact_id, "text": text, "descriptor": accepted}))
+
+        if start_line.is_none() && end_line.is_none() {
+            return Ok(AcceptedArtifactRead {
+                artifact_id: artifact_id.into(),
+                text,
+                descriptor: accepted.clone(),
+                total_lines: None,
+                start_line: None,
+                end_line: None,
+            });
+        }
+
+        let start = start_line.ok_or_else(|| "end_line requires start_line".to_owned())?;
+        if start == 0 {
+            return Err("start_line must be >= 1".into());
+        }
+
+        let (ranged_text, total_lines, start, actual_end) =
+            exact_line_range(&text, Some(start), end_line)?;
+        Ok(AcceptedArtifactRead {
+            artifact_id: artifact_id.into(),
+            text: ranged_text,
+            descriptor: accepted.clone(),
+            total_lines: Some(total_lines),
+            start_line: Some(start),
+            end_line: Some(actual_end),
+        })
     }
 
     pub fn begin_candidate(
@@ -313,9 +345,35 @@ impl ModelStore {
         Ok(staged)
     }
 
-    pub fn read_staged_candidate(&self, artifact_id: &str) -> Result<StagedCandidate, String> {
+    pub fn read_staged_candidate(
+        &self,
+        artifact_id: &str,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
+    ) -> Result<crate::model::StagedCandidateView, String> {
         self.recover_acceptance()?;
-        self.validated_staged_candidate(artifact_id)
+        let candidate = self.validated_staged_candidate(artifact_id)?;
+        let text = String::from_utf8(candidate.bytes.clone()).map_err(|error| error.to_string())?;
+        let (text, total_lines, start_line, end_line) = match (start_line, end_line) {
+            (None, None) => (text, None, None, None),
+            (Some(start_line), end_line) => {
+                let (text, total_lines, start_line, end_line) =
+                    exact_line_range(&text, Some(start_line), end_line)?;
+                (text, Some(total_lines), Some(start_line), Some(end_line))
+            }
+            (None, Some(_)) => return Err("end_line requires start_line".into()),
+        };
+        Ok(crate::model::StagedCandidateView {
+            identity: candidate.identity,
+            text,
+            content: candidate.content,
+            revision: candidate.revision,
+            supersedes: candidate.supersedes,
+            state: candidate.state,
+            total_lines,
+            start_line,
+            end_line,
+        })
     }
 
     pub fn begin_candidate_review(
@@ -886,6 +944,72 @@ mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    fn accepted_artifact_fixture(content: &[u8]) -> (PathBuf, ModelStore) {
+        let root = std::env::temp_dir().join(format!(
+            "rmwm-ranged-read-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("body.md"), content).unwrap();
+        let manifest = format!(
+            "schema: rmwm/requirements-model/v1\nmodel_id: test\nartifacts:\n  candidate:\n    type: domain_framing\n    representation:\n      path: body.md\n      media_type: text/markdown\n      encoding: utf-8\n      line_endings: lf\n    accepted:\n      revision: sha256:accepted\n      content:\n        digest: {}\n        size: {}\n      sources: {{}}\n",
+            content_digest(content),
+            content.len()
+        );
+        fs::write(root.join("requirements_model.yaml"), manifest).unwrap();
+        (root.clone(), ModelStore::open(root))
+    }
+
+    #[test]
+    fn lf_ranged_read_preserves_line_terminators_exactly() {
+        let content = b"alpha\nbeta\ngamma\n";
+        let (root, store) = accepted_artifact_fixture(content);
+        let read = store
+            .read_accepted_artifact("candidate", Some(1), Some(2))
+            .unwrap();
+        assert_eq!(read.text, "alpha\nbeta\n");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn range_through_eof_preserves_final_newline() {
+        let content = b"alpha\nbeta\ngamma\n";
+        let (root, store) = accepted_artifact_fixture(content);
+        let read = store
+            .read_accepted_artifact("candidate", Some(3), None)
+            .unwrap();
+        assert_eq!(read.text, "gamma\n");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn crlf_ranged_content_remains_crlf_byte_for_byte() {
+        let content = b"alpha\r\nbeta\r\ngamma\r\n";
+        let (root, store) = accepted_artifact_fixture(content);
+        let read = store
+            .read_accepted_artifact("candidate", Some(2), Some(2))
+            .unwrap();
+        assert_eq!(read.text.as_bytes(), b"beta\r\n");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn concatenated_adjacent_ranges_reconstruct_exact_accepted_bytes() {
+        let content = b"alpha\r\nbeta\r\ngamma\r\ndelta";
+        let (root, store) = accepted_artifact_fixture(content);
+        let first = store
+            .read_accepted_artifact("candidate", Some(1), Some(2))
+            .unwrap();
+        let second = store
+            .read_accepted_artifact("candidate", Some(3), None)
+            .unwrap();
+        assert_eq!(format!("{}{}", first.text, second.text).as_bytes(), content);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn failed_staged_replacement_removes_its_temporary_file() {
         let root = std::env::temp_dir().join(format!(
@@ -1010,6 +1134,51 @@ fn verify_content(bytes: &[u8], expected: &ContentDescriptor) -> Result<(), Stri
         return Err("accepted artifact digest mismatch".into());
     }
     Ok(())
+}
+
+/// Byte offset of the start of each 1-based line, without splitting on or
+/// normalizing terminators; a trailing newline does not start a new line.
+fn line_start_offsets(text: &str) -> Vec<usize> {
+    let bytes = text.as_bytes();
+    let mut starts = vec![0usize];
+    for (index, byte) in bytes.iter().enumerate() {
+        if *byte == b'\n' && index + 1 < bytes.len() {
+            starts.push(index + 1);
+        }
+    }
+    starts
+}
+
+fn exact_line_range(
+    text: &str,
+    start_line: Option<usize>,
+    end_line: Option<usize>,
+) -> Result<(String, usize, usize, usize), String> {
+    let start = start_line.ok_or_else(|| "end_line requires start_line".to_owned())?;
+    if start == 0 {
+        return Err("start_line must be >= 1".into());
+    }
+    let line_starts = line_start_offsets(text);
+    let total_lines = line_starts.len();
+    if start > total_lines {
+        return Err("start_line is beyond end of artifact".into());
+    }
+    let requested_end = end_line.unwrap_or(total_lines);
+    if requested_end == 0 {
+        return Err("end_line must be >= 1".into());
+    }
+    if start > requested_end {
+        return Err("start_line must not be greater than end_line".into());
+    }
+    let actual_end = requested_end.min(total_lines);
+    let start_byte = line_starts[start - 1];
+    let end_byte = line_starts.get(actual_end).copied().unwrap_or(text.len());
+    Ok((
+        text[start_byte..end_byte].to_owned(),
+        total_lines,
+        start,
+        actual_end,
+    ))
 }
 
 fn normalize_body(body: &str) -> Result<String, String> {
