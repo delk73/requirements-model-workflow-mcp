@@ -178,12 +178,12 @@ fn system_story_candidate_is_rejected() {
     };
     assert_eq!(
         store.begin_candidate(identity).unwrap_err(),
-        "only domain framing candidates are supported"
+        "only domain framing and domain ontology candidates are supported"
     );
 }
 
 #[test]
-fn domain_ontology_candidate_is_rejected() {
+fn domain_ontology_candidate_requires_current_bindings() {
     let (_dir, store, _story) = fixture();
     let identity = CandidateIdentity {
         model_id: "raw-adc".into(),
@@ -194,7 +194,7 @@ fn domain_ontology_candidate_is_rejected() {
     };
     assert_eq!(
         store.begin_candidate(identity).unwrap_err(),
-        "only domain framing candidates are supported"
+        "stale or incorrect target revision"
     );
 }
 
