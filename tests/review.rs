@@ -201,9 +201,10 @@ fn ontology_candidate_can_be_staged_read_reviewed_and_rejected() {
         .unwrap();
     assert_eq!(
         store
-            .read_staged_candidate("raw-adc-domain-ontology")
+            .read_staged_candidate("raw-adc-domain-ontology", None, None)
             .unwrap()
-            .bytes,
+            .text
+            .into_bytes(),
         candidate.bytes
     );
     store
@@ -229,6 +230,96 @@ fn ontology_candidate_can_be_staged_read_reviewed_and_rejected() {
             .state,
         "rejected"
     );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn staged_ranged_reads_preserve_text_metadata_and_range_semantics() {
+    let (dir, store, story_revision) = fixture();
+    let candidate = stage(&store, story_revision);
+    let unbounded = store
+        .read_staged_candidate("raw-adc-domain-framing", None, None)
+        .unwrap();
+    assert_eq!(unbounded.text.as_bytes(), candidate.bytes.as_slice());
+    assert_eq!(unbounded.revision, candidate.revision);
+    assert_eq!(unbounded.identity, candidate.identity);
+    assert_eq!(unbounded.state, "staged");
+    assert!(unbounded.total_lines.is_none());
+
+    let first = store
+        .read_staged_candidate("raw-adc-domain-framing", Some(1), Some(2))
+        .unwrap();
+    let middle = store
+        .read_staged_candidate("raw-adc-domain-framing", Some(3), Some(4))
+        .unwrap();
+    let through_eof = store
+        .read_staged_candidate("raw-adc-domain-framing", Some(5), None)
+        .unwrap();
+    let mut reconstructed = first.text.clone();
+    reconstructed.push_str(&middle.text);
+    reconstructed.push_str(&through_eof.text);
+    assert_eq!(reconstructed, unbounded.text);
+    assert_eq!(first.revision, unbounded.revision);
+    assert_eq!(first.identity, unbounded.identity);
+    assert_eq!(first.state, unbounded.state);
+    assert_eq!(through_eof.end_line, through_eof.total_lines);
+
+    let clamped = store
+        .read_staged_candidate("raw-adc-domain-framing", Some(1), Some(1000))
+        .unwrap();
+    assert_eq!(clamped.text, unbounded.text);
+    assert_eq!(clamped.end_line, clamped.total_lines);
+    for (start, end) in [(None, Some(1)), (Some(4), Some(2)), (Some(1000), None)] {
+        assert!(store
+            .read_staged_candidate("raw-adc-domain-framing", start, end)
+            .is_err());
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn large_staged_ontology_is_consumable_through_bounded_reads() {
+    let (dir, store, _story_revision, framing_revision) = accepted_target_fixture();
+    let ontology = fs::read_to_string(dir.join("domain_ontology.md")).unwrap();
+    let body = ontology.split_once("\n\n").unwrap().1;
+    let candidate = store
+        .stage_candidate(
+            ontology_identity(accepted_ontology_revision(&store), framing_revision),
+            body,
+        )
+        .unwrap();
+    let whole = store
+        .read_staged_candidate("raw-adc-domain-ontology", None, None)
+        .unwrap();
+    let chunks = [
+        store
+            .read_staged_candidate("raw-adc-domain-ontology", Some(1), Some(40))
+            .unwrap(),
+        store
+            .read_staged_candidate("raw-adc-domain-ontology", Some(41), Some(80))
+            .unwrap(),
+        store
+            .read_staged_candidate("raw-adc-domain-ontology", Some(81), Some(120))
+            .unwrap(),
+        store
+            .read_staged_candidate("raw-adc-domain-ontology", Some(121), Some(141))
+            .unwrap(),
+        store
+            .read_staged_candidate("raw-adc-domain-ontology", Some(142), None)
+            .unwrap(),
+    ];
+    let reconstructed = chunks
+        .iter()
+        .map(|chunk| chunk.text.as_str())
+        .collect::<String>();
+    assert_eq!(reconstructed, whole.text);
+    assert_eq!(whole.text.as_bytes(), candidate.bytes.as_slice());
+    assert!(chunks
+        .iter()
+        .all(|chunk| chunk.text.len() < whole.text.len() / 2));
+    assert!(chunks
+        .iter()
+        .all(|chunk| chunk.revision == candidate.revision));
     fs::remove_dir_all(dir).unwrap();
 }
 
@@ -449,9 +540,10 @@ fn exact_staged_candidate_can_be_read_and_reviewed_without_mutating_inputs() {
     );
     assert_eq!(
         store
-            .read_staged_candidate("raw-adc-domain-framing")
+            .read_staged_candidate("raw-adc-domain-framing", None, None)
             .unwrap()
-            .bytes,
+            .text
+            .into_bytes(),
         staged.bytes
     );
     let request = store
@@ -491,7 +583,7 @@ fn altered_staged_record_and_revision_mismatch_are_rejected() {
     value["content"]["size"] = serde_json::json!(0);
     fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
     assert!(store
-        .read_staged_candidate("raw-adc-domain-framing")
+        .read_staged_candidate("raw-adc-domain-framing", None, None)
         .is_err());
     assert!(store
         .begin_candidate_review("raw-adc-domain-framing", &staged.revision)
@@ -1035,7 +1127,7 @@ fn candidate_with_superseded_bound_source_is_stale_during_inspection() {
     assert!(store.inspect_model_state().is_err());
     assert_eq!(
         store
-            .read_staged_candidate("raw-adc-domain-framing")
+            .read_staged_candidate("raw-adc-domain-framing", None, None)
             .unwrap_err(),
         "stale or incorrect source revision for raw-adc-story"
     );
@@ -1207,7 +1299,7 @@ fn replacement_preparation_failure_preserves_rejected_active_candidate() {
     );
     assert_eq!(
         store
-            .read_staged_candidate("raw-adc-domain-framing")
+            .read_staged_candidate("raw-adc-domain-framing", None, None)
             .unwrap()
             .revision,
         candidate.revision
@@ -1240,7 +1332,7 @@ fn identical_replacement_of_rejected_candidate_is_refused() {
     );
     assert_eq!(
         store
-            .read_staged_candidate("raw-adc-domain-framing")
+            .read_staged_candidate("raw-adc-domain-framing", None, None)
             .unwrap()
             .revision,
         candidate.revision
@@ -1334,7 +1426,7 @@ fn symlinked_staged_record_is_rejected_without_reading_external_bytes() {
     )
     .unwrap();
     assert!(store
-        .read_staged_candidate("raw-adc-domain-framing")
+        .read_staged_candidate("raw-adc-domain-framing", None, None)
         .is_err());
     assert_eq!(fs::read(&outside).unwrap(), original);
     assert!(store
@@ -1494,7 +1586,7 @@ fn symlinked_review_directory_fails_state_inspection_instead_of_falling_back() {
     assert!(fs::read_dir(&outside).unwrap().next().is_none());
     assert_eq!(
         store
-            .read_staged_candidate("raw-adc-domain-framing")
+            .read_staged_candidate("raw-adc-domain-framing", None, None)
             .unwrap()
             .revision,
         staged.revision

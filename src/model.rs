@@ -39,6 +39,19 @@ pub struct ContentDescriptor {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct AcceptedArtifactRead {
+    pub artifact_id: String,
+    pub text: String,
+    pub descriptor: AcceptedRevision,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_lines: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ArtifactState {
     pub artifact_id: String,
     #[serde(flatten)]
@@ -97,6 +110,12 @@ pub struct StagedCandidateView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supersedes: Option<String>,
     pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_lines: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
