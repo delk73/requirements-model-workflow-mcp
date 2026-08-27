@@ -180,7 +180,7 @@ fn system_story_candidate_is_rejected() {
     };
     assert_eq!(
         store.begin_candidate(identity).unwrap_err(),
-        "only domain framing and domain ontology candidates are supported"
+        "only domain framing, domain ontology, and controlled vocabulary candidates are supported"
     );
 }
 

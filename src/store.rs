@@ -212,8 +212,12 @@ impl ModelStore {
             .ok_or_else(|| "unknown artifact".to_owned())?;
         if descriptor.artifact_type != "domain_framing"
             && descriptor.artifact_type != "domain_ontology"
+            && descriptor.artifact_type != "controlled_vocabulary"
         {
-            return Err("only domain framing and domain ontology candidates are supported".into());
+            return Err(
+                "only domain framing, domain ontology, and controlled vocabulary candidates are supported"
+                    .into(),
+            );
         }
         if descriptor.artifact_type != identity.artifact_type {
             return Err("artifact type mismatch".into());
@@ -229,7 +233,8 @@ impl ModelStore {
             self.ensure_current(&identity.artifact_id, descriptor)?;
         }
         if (identity.artifact_type == "domain_framing"
-            || identity.artifact_type == "domain_ontology")
+            || identity.artifact_type == "domain_ontology"
+            || identity.artifact_type == "controlled_vocabulary")
             && identity.source_revisions.len() != 1
         {
             return Err(format!(
@@ -248,6 +253,9 @@ impl ModelStore {
                 }
                 "domain_ontology" if source.artifact_type != "domain_framing" => {
                     return Err("domain ontology source must be a domain framing".into());
+                }
+                "controlled_vocabulary" if source.artifact_type != "domain_ontology" => {
+                    return Err("controlled vocabulary source must be a domain ontology".into());
                 }
                 _ => {}
             }
