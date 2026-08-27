@@ -180,13 +180,8 @@ impl ModelStore {
             });
         }
 
-        let start = start_line.ok_or_else(|| "end_line requires start_line".to_owned())?;
-        if start == 0 {
-            return Err("start_line must be >= 1".into());
-        }
-
         let (ranged_text, total_lines, start, actual_end) =
-            exact_line_range(&text, Some(start), end_line)?;
+            exact_line_range(&text, start_line, end_line)?;
         Ok(AcceptedArtifactRead {
             artifact_id: artifact_id.into(),
             text: ranged_text,
@@ -353,7 +348,7 @@ impl ModelStore {
     ) -> Result<crate::model::StagedCandidateView, String> {
         self.recover_acceptance()?;
         let candidate = self.validated_staged_candidate(artifact_id)?;
-        let text = String::from_utf8(candidate.bytes.clone()).map_err(|error| error.to_string())?;
+        let text = String::from_utf8(candidate.bytes).map_err(|error| error.to_string())?;
         let (text, total_lines, start_line, end_line) = match (start_line, end_line) {
             (None, None) => (text, None, None, None),
             (Some(start_line), end_line) => {
