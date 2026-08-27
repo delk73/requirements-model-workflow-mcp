@@ -145,7 +145,7 @@ fn tools() -> Value {
         },
         {
             "name": "accept_candidate",
-            "description": "Accept one exact approved staged domain-framing or domain-ontology candidate, committing its exact bytes and accepted descriptor.",
+            "description": "Accept one exact approved staged domain-framing, domain-ontology, or controlled-vocabulary candidate, committing its exact bytes and accepted descriptor.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
