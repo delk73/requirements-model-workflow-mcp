@@ -157,6 +157,15 @@ Derived state is not stored in artifact frontmatter:
 * `superseded`: a later accepted revision replaced an earlier accepted revision
   for the same artifact.
 
+`review_required` is evaluated only against an artifact's directly bound
+accepted source revisions. It does not automatically propagate through an
+accepted intermediate artifact whose accepted revision has not changed.
+
+An intermediate artifact may be accepted with unchanged body bytes and updated
+accepted source revisions. Because accepted source revisions are part of
+revision identity, that acceptance produces a new revision and makes its
+directly bound dependents `review_required`.
+
 ### Candidate Contract
 
 The future MCP behavior is:

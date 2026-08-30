@@ -10,6 +10,8 @@ const VOCABULARY_ARTIFACT: &str = "raw-adc-controlled-vocabulary";
 const ONTOLOGY_ARTIFACT: &str = "raw-adc-domain-ontology";
 const FRAMING_ARTIFACT: &str = "raw-adc-domain-framing";
 
+const ONTOLOGY_BODY: &str = "# Ontology\n\n## Concepts\n\n| ID | Concept |\n| --- | --- |\n| `concept.c001` | Capture |\n\n## Properties\n\n| ID | Property |\n| --- | --- |\n| `property.p001` | Capture identity |\n\n## Relationships\n\n| ID | Relationship |\n| --- | --- |\n| `relationship.r001` | relates to |\n\n## Constraints\n\n* `constraint.k001` A constraint.\n";
+
 fn fixture() -> (PathBuf, ModelStore, String, String, String) {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
     let dir = std::env::temp_dir().join(format!(
@@ -148,7 +150,7 @@ fn vocabulary_rebinds_to_new_ontology_after_ontology_reacceptance() {
     stage_review_approve_accept(
         &store,
         ontology_identity(ontology_o1.clone(), framing_revision),
-        "# Ontology O2",
+        ONTOLOGY_BODY,
     );
     let ontology_o2 = accepted_revision(&store, ONTOLOGY_ARTIFACT);
     assert_ne!(ontology_o1, ontology_o2);
