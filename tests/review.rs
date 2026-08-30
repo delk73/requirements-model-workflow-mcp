@@ -119,6 +119,70 @@ fn ontology_identity(target_revision: String, framing_revision: String) -> Candi
     }
 }
 
+const ONTOLOGY_BODY: &str = "# Ontology\n\n## Concepts\n\n| ID | Concept |\n| --- | --- |\n| `concept.c001` | Capture |\n\n## Properties\n\n| ID | Property |\n| --- | --- |\n| `property.p001` | Capture identity |\n\n## Relationships\n\n| ID | Relationship |\n| --- | --- |\n| `relationship.r001` | relates to |\n\n## Constraints\n\n* `constraint.k001` A constraint.\n";
+
+fn with_ontology_ids(body: &str) -> String {
+    let mut section = "";
+    let mut table_line = 0;
+    let mut element_number = 0;
+    let mut result = String::new();
+
+    for line in body.lines() {
+        match line {
+            "## Concepts" => {
+                section = "concept.c";
+                table_line = 0;
+                element_number = 0;
+            }
+            "## Properties" => {
+                section = "property.p";
+                table_line = 0;
+                element_number = 0;
+            }
+            "## Relationships" => {
+                section = "relationship.r";
+                table_line = 0;
+                element_number = 0;
+            }
+            "## Constraints" => {
+                section = "constraint.k";
+                element_number = 0;
+            }
+            heading if heading.starts_with("## ") => section = "",
+            _ => {}
+        }
+
+        let transformed =
+            if !section.is_empty() && section != "constraint.k" && line.starts_with('|') {
+                table_line += 1;
+                match table_line {
+                    1 => format!("| ID |{}", line.strip_prefix('|').unwrap()),
+                    2 => format!("| --- |{}", line.strip_prefix('|').unwrap()),
+                    _ => {
+                        element_number += 1;
+                        format!(
+                            "| `{}{element_number:03}` |{}",
+                            section,
+                            line.strip_prefix('|').unwrap()
+                        )
+                    }
+                }
+            } else if section == "constraint.k" && line.starts_with("* ") {
+                element_number += 1;
+                format!(
+                    "* `{}{element_number:03}` {}",
+                    section,
+                    line.strip_prefix("* ").unwrap()
+                )
+            } else {
+                line.into()
+            };
+        result.push_str(&transformed);
+        result.push('\n');
+    }
+    result
+}
+
 fn accepted_ontology_revision(store: &ModelStore) -> String {
     store
         .inspect_model_state()
@@ -196,7 +260,7 @@ fn ontology_candidate_can_be_staged_read_reviewed_and_rejected() {
     let candidate = store
         .stage_candidate(
             ontology_identity(accepted_ontology_revision(&store), framing_revision),
-            "# Revised ontology",
+            ONTOLOGY_BODY,
         )
         .unwrap();
     assert_eq!(
@@ -281,11 +345,11 @@ fn staged_ranged_reads_preserve_text_metadata_and_range_semantics() {
 fn large_staged_ontology_is_consumable_through_bounded_reads() {
     let (dir, store, _story_revision, framing_revision) = accepted_target_fixture();
     let ontology = fs::read_to_string(dir.join("domain_ontology.md")).unwrap();
-    let body = ontology.split_once("\n\n").unwrap().1;
+    let body = with_ontology_ids(ontology.split_once("\n\n").unwrap().1);
     let candidate = store
         .stage_candidate(
             ontology_identity(accepted_ontology_revision(&store), framing_revision),
-            body,
+            &body,
         )
         .unwrap();
     let whole = store
@@ -331,7 +395,7 @@ fn approved_ontology_candidate_updates_only_ontology_and_binds_new_framing() {
     let candidate = store
         .stage_candidate(
             ontology_identity(accepted_ontology_revision(&store), framing_revision.clone()),
-            "# Accepted revised ontology",
+            ONTOLOGY_BODY,
         )
         .unwrap();
     store
@@ -448,7 +512,7 @@ fn revised_framing_can_be_followed_by_ontology_reacceptance() {
     let ontology_candidate = store
         .stage_candidate(
             ontology_identity(ontology_o_revision, framing_b.revision.clone()),
-            "# Ontology O revised for framing B",
+            ONTOLOGY_BODY,
         )
         .unwrap();
     store

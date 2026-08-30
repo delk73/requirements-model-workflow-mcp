@@ -1,5 +1,6 @@
 use crate::{
     digest::{content_digest, revision_handle},
+    markdown_ontology::extract_ontology_elements,
     model::{
         AcceptedArtifactRead, AcceptedRevision, ArtifactState, CandidateDecision,
         CandidateIdentity, CandidateReviewRequest, ContentDescriptor, Manifest, ModelState,
@@ -299,6 +300,9 @@ impl ModelStore {
         let body = normalize_body(body)?;
         if body.starts_with("---\n") {
             return Err("body must exclude front matter".into());
+        }
+        if identity.artifact_type == "domain_ontology" {
+            extract_ontology_elements(&body)?;
         }
         let frontmatter = format!(
             "---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"{}\"\n  type: \"{}\"\n---\n",

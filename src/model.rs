@@ -38,6 +38,45 @@ pub struct ContentDescriptor {
     pub size: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OntologyElementKind {
+    Concept,
+    Property,
+    Relationship,
+    Constraint,
+}
+
+impl OntologyElementKind {
+    pub fn section_name(self) -> &'static str {
+        match self {
+            Self::Concept => "Concepts",
+            Self::Property => "Properties",
+            Self::Relationship => "Relationships",
+            Self::Constraint => "Constraints",
+        }
+    }
+
+    pub fn id_prefix(self) -> &'static str {
+        match self {
+            Self::Concept => "concept.c",
+            Self::Property => "property.p",
+            Self::Relationship => "relationship.r",
+            Self::Constraint => "constraint.k",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OntologyElement {
+    pub id: String,
+    pub kind: OntologyElementKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OntologyElementIndex {
+    pub elements: Vec<OntologyElement>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AcceptedArtifactRead {
     pub artifact_id: String,
