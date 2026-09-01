@@ -949,7 +949,10 @@ fn descriptor_for_accepted_source<'a>(
         .get(artifact_id)
         .ok_or_else(|| format!("unknown source {artifact_id}"))?;
     if descriptor.artifact_type != expected_type {
-        return Err(format!("source must be a {expected_type}"));
+        return Err(format!(
+            "source must be a {}",
+            expected_type.replace('_', " ")
+        ));
     }
     descriptor
         .accepted

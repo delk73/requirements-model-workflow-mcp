@@ -6,7 +6,7 @@
 
 The system shall identify each capture using a stable capture identity.
 
-Ontology elements:
+#### Ontology elements
 
 | Ontology element |
 | --- |

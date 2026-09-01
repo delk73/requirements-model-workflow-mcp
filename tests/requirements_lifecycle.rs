@@ -8,7 +8,7 @@ use std::{
 
 const ONTOLOGY: &str = "# Ontology\n\n## Concepts\n\n| ID | Concept |\n| --- | --- |\n| `concept.c001` | Capture |\n| `concept.c002` | Other |\n";
 const VOCABULARY: &str = "# Vocabulary\n\n## Entries\n\n| Ontology element | Preferred term | Definition |\n| --- | --- | --- |\n| `concept.c001` | Capture | A capture. |\n";
-const REQUIREMENTS: &str = "# Requirements\n\n## Requirements\n\n### `requirement.r001`\n\nThe system shall identify captures.\n\nOntology elements:\n\n| Ontology element |\n| --- |\n| `concept.c001` |\n";
+const REQUIREMENTS: &str = "# Requirements\n\n## Requirements\n\n### `requirement.r001`\n\nThe system shall identify captures.\n\n#### Ontology elements\n\n| Ontology element |\n| --- |\n| `concept.c001` |\n";
 
 fn setup() -> (PathBuf, ModelStore, String, String) {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
@@ -153,7 +153,7 @@ fn requirements_staging_validates_source_and_admitted_references() {
     assert!(store
         .stage_candidate(
             requirements.clone(),
-            &format!("{REQUIREMENTS}\n### `requirement.r001`\n\nAnother obligation.\n\nOntology elements:\n\n| Ontology element |\n| --- |\n| `concept.c001` |\n")
+            &format!("{REQUIREMENTS}\n### `requirement.r001`\n\nAnother obligation.\n\n#### Ontology elements\n\n| Ontology element |\n| --- |\n| `concept.c001` |\n")
         )
         .unwrap_err()
         .contains("duplicate requirement ID"));
