@@ -11,6 +11,7 @@ const ONTOLOGY_ARTIFACT: &str = "raw-adc-domain-ontology";
 const FRAMING_ARTIFACT: &str = "raw-adc-domain-framing";
 
 const ONTOLOGY_BODY: &str = "# Ontology\n\n## Concepts\n\n| ID | Concept |\n| --- | --- |\n| `concept.c001` | Capture |\n\n## Properties\n\n| ID | Property |\n| --- | --- |\n| `property.p001` | Capture identity |\n\n## Relationships\n\n| ID | Relationship |\n| --- | --- |\n| `relationship.r001` | relates to |\n\n## Constraints\n\n* `constraint.k001` A constraint.\n";
+const VOCABULARY_BODY: &str = "# Vocabulary\n\n## Entries\n\n| Ontology element | Preferred term | Definition |\n| --- | --- | --- |\n| `concept.c001` | Capture | A grouping. |\n| `property.p001` | Capture identity | An identity. |\n| `relationship.r001` | Relates to | A relation. |\n| `constraint.k001` | Constraint | A rule. |\n";
 
 fn fixture() -> (PathBuf, ModelStore, String, String, String) {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
@@ -135,25 +136,33 @@ fn stage_review_approve_accept(
 fn vocabulary_rebinds_to_new_ontology_after_ontology_reacceptance() {
     let (dir, store, _story_revision, framing_revision, ontology_o1) = fixture();
 
-    // V1 bound to O1.
-    let v1 = stage_review_approve_accept(
-        &store,
-        vocabulary_identity(None, ontology_o1.clone()),
-        "# Vocabulary V1",
-    );
-    assert_eq!(
-        v1.sources.get(ONTOLOGY_ARTIFACT),
-        Some(&ontology_o1.clone())
-    );
-
-    // Accept ontology O2.
+    // Replace the accepted legacy ontology with an ID-bearing revision.
     stage_review_approve_accept(
         &store,
-        ontology_identity(ontology_o1.clone(), framing_revision),
+        ontology_identity(ontology_o1.clone(), framing_revision.clone()),
         ONTOLOGY_BODY,
     );
     let ontology_o2 = accepted_revision(&store, ONTOLOGY_ARTIFACT);
-    assert_ne!(ontology_o1, ontology_o2);
+
+    // V1 bound to the current ontology.
+    let v1 = stage_review_approve_accept(
+        &store,
+        vocabulary_identity(None, ontology_o2.clone()),
+        VOCABULARY_BODY,
+    );
+    assert_eq!(
+        v1.sources.get(ONTOLOGY_ARTIFACT),
+        Some(&ontology_o2.clone())
+    );
+
+    // Accept ontology O3.
+    stage_review_approve_accept(
+        &store,
+        ontology_identity(ontology_o2.clone(), framing_revision),
+        &format!("{ONTOLOGY_BODY}\n"),
+    );
+    let ontology_o3 = accepted_revision(&store, ONTOLOGY_ARTIFACT);
+    assert_ne!(ontology_o2, ontology_o3);
 
     // V1 becomes review_required because its bound ontology source is stale.
     assert_eq!(
@@ -168,14 +177,14 @@ fn vocabulary_rebinds_to_new_ontology_after_ontology_reacceptance() {
         "review_required"
     );
 
-    // Begin, stage, review, approve and accept V2 against O2.
+    // Begin, stage, review, approve and accept V2 against O3.
     let v1_revision = accepted_revision(&store, VOCABULARY_ARTIFACT);
     let v2 = stage_review_approve_accept(
         &store,
-        vocabulary_identity(Some(v1_revision), ontology_o2.clone()),
-        "# Vocabulary V2",
+        vocabulary_identity(Some(v1_revision), ontology_o3.clone()),
+        VOCABULARY_BODY,
     );
-    assert_eq!(v2.sources.get(ONTOLOGY_ARTIFACT), Some(&ontology_o2));
+    assert_eq!(v2.sources.get(ONTOLOGY_ARTIFACT), Some(&ontology_o3));
 
     assert_eq!(
         store
@@ -193,6 +202,113 @@ fn vocabulary_rebinds_to_new_ontology_after_ontology_reacceptance() {
         .unwrap()
         .affected_artifacts
         .is_empty());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn vocabulary_candidate_accepts_all_stable_ontology_element_kinds() {
+    let (dir, store, _story_revision, framing_revision, ontology_revision) = fixture();
+    stage_review_approve_accept(
+        &store,
+        ontology_identity(ontology_revision.clone(), framing_revision),
+        ONTOLOGY_BODY,
+    );
+    stage_review_approve_accept(
+        &store,
+        vocabulary_identity(None, accepted_revision(&store, ONTOLOGY_ARTIFACT)),
+        VOCABULARY_BODY,
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn vocabulary_candidate_rejects_missing_reference() {
+    let (dir, store, _story_revision, framing_revision, ontology_revision) = fixture();
+    stage_review_approve_accept(
+        &store,
+        ontology_identity(ontology_revision, framing_revision),
+        ONTOLOGY_BODY,
+    );
+    let body = VOCABULARY_BODY.replace("| `concept.c001` |", "|  |");
+    let error = store
+        .stage_candidate(
+            vocabulary_identity(None, accepted_revision(&store, ONTOLOGY_ARTIFACT)),
+            &body,
+        )
+        .unwrap_err();
+    assert!(error.contains("missing ontology reference"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn vocabulary_candidate_rejects_malformed_reference() {
+    let (dir, store, _story_revision, framing_revision, ontology_revision) = fixture();
+    stage_review_approve_accept(
+        &store,
+        ontology_identity(ontology_revision, framing_revision),
+        ONTOLOGY_BODY,
+    );
+    let body = VOCABULARY_BODY.replace("concept.c001", "concept.c01");
+    let error = store
+        .stage_candidate(
+            vocabulary_identity(None, accepted_revision(&store, ONTOLOGY_ARTIFACT)),
+            &body,
+        )
+        .unwrap_err();
+    assert!(error.contains("malformed ontology reference"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn vocabulary_candidate_rejects_unresolved_reference() {
+    let (dir, store, _story_revision, framing_revision, ontology_revision) = fixture();
+    stage_review_approve_accept(
+        &store,
+        ontology_identity(ontology_revision, framing_revision),
+        ONTOLOGY_BODY,
+    );
+    let body = VOCABULARY_BODY.replace("concept.c001", "concept.c999");
+    let error = store
+        .stage_candidate(
+            vocabulary_identity(None, accepted_revision(&store, ONTOLOGY_ARTIFACT)),
+            &body,
+        )
+        .unwrap_err();
+    assert!(error.contains("unresolved ontology reference: concept.c999"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn vocabulary_candidate_rejects_non_current_ontology_source() {
+    let (dir, store, _story_revision, framing_revision, ontology_revision) = fixture();
+    stage_review_approve_accept(
+        &store,
+        ontology_identity(ontology_revision.clone(), framing_revision.clone()),
+        ONTOLOGY_BODY,
+    );
+    let current = accepted_revision(&store, ONTOLOGY_ARTIFACT);
+    stage_review_approve_accept(
+        &store,
+        ontology_identity(current.clone(), framing_revision),
+        &format!("{ONTOLOGY_BODY}\n"),
+    );
+    let error = store
+        .begin_candidate(vocabulary_identity(None, current))
+        .unwrap_err();
+    assert!(error.contains("stale or incorrect source revision"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn vocabulary_candidate_rejects_legacy_ontology_without_stable_index() {
+    let (dir, store, _story_revision, _framing_revision, ontology_revision) = fixture();
+    let error = store
+        .stage_candidate(
+            vocabulary_identity(None, ontology_revision),
+            VOCABULARY_BODY,
+        )
+        .unwrap_err();
+    assert!(error.contains("bound ontology cannot provide required stable ontology-element index"));
     fs::remove_dir_all(dir).unwrap();
 }
 

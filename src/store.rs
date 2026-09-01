@@ -1,6 +1,7 @@
 use crate::{
     digest::{content_digest, revision_handle},
     markdown_ontology::extract_ontology_elements,
+    markdown_vocabulary::extract_ontology_references,
     model::{
         AcceptedArtifactRead, AcceptedRevision, ArtifactState, CandidateDecision,
         CandidateIdentity, CandidateReviewRequest, ContentDescriptor, Manifest, ModelState,
@@ -303,6 +304,45 @@ impl ModelStore {
         }
         if identity.artifact_type == "domain_ontology" {
             extract_ontology_elements(&body)?;
+        } else if identity.artifact_type == "controlled_vocabulary" {
+            let ontology_id = identity
+                .source_revisions
+                .keys()
+                .next()
+                .ok_or("controlled vocabulary requires an ontology source")?;
+            let manifest = self.manifest()?;
+            let ontology = descriptor_for_accepted_source(&manifest, ontology_id)?;
+            let ontology_path = self.artifact_path(&ontology.representation.path)?;
+            let ontology_bytes = fs::read(&ontology_path)
+                .map_err(|error| format!("cannot read {ontology_id}: {error}"))?;
+            verify_content(
+                &ontology_bytes,
+                &ontology
+                    .accepted
+                    .as_ref()
+                    .ok_or("bound ontology has no accepted revision")?
+                    .content,
+            )?;
+            let index = extract_ontology_elements(
+                &String::from_utf8(ontology_bytes).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| {
+                format!(
+                    "bound ontology cannot provide required stable ontology-element index: {error}"
+                )
+            })?;
+            for reference in extract_ontology_references(&body)? {
+                if !index
+                    .elements
+                    .iter()
+                    .any(|element| element.id == reference.ontology_element_id)
+                {
+                    return Err(format!(
+                        "unresolved ontology reference: {}",
+                        reference.ontology_element_id
+                    ));
+                }
+            }
         }
         let frontmatter = format!(
             "---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"{}\"\n  type: \"{}\"\n---\n",
@@ -855,6 +895,24 @@ impl ModelStore {
         }
         Ok(Some(("staged", candidate.revision)))
     }
+}
+
+fn descriptor_for_accepted_source<'a>(
+    manifest: &'a Manifest,
+    artifact_id: &str,
+) -> Result<&'a crate::model::ArtifactDescriptor, String> {
+    let descriptor = manifest
+        .artifacts
+        .get(artifact_id)
+        .ok_or_else(|| format!("unknown source {artifact_id}"))?;
+    if descriptor.artifact_type != "domain_ontology" {
+        return Err("controlled vocabulary source must be a domain ontology".into());
+    }
+    descriptor
+        .accepted
+        .as_ref()
+        .ok_or_else(|| format!("source {artifact_id} has no accepted revision"))?;
+    Ok(descriptor)
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path, missing: &str) -> Result<T, String> {
