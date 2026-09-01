@@ -36,7 +36,7 @@ pub fn extract_requirements(body: &str) -> Result<RequirementIndex, String> {
         }
         cursor += 1;
         let mut prose = Vec::new();
-        while cursor < lines.len() && lines[cursor].1 != "Ontology elements:" {
+        while cursor < lines.len() && lines[cursor].1 != "#### Ontology elements" {
             if lines[cursor].1.starts_with("### ") || lines[cursor].1.starts_with("## ") {
                 return Err(format!("requirement {id} is missing ontology references"));
             }

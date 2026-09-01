@@ -1,6 +1,6 @@
 use requirements_model_workflow_mcp::markdown_requirements::extract_requirements;
 
-const BODY: &str = "# Requirements\n\n## Requirements\n\n### `requirement.r001`\n\nThe system shall identify each capture using a stable capture identity.\n\nOntology elements:\n\n| Ontology element |\n| --- |\n| `concept.c001` |\n| `property.p001` |\n";
+const BODY: &str = "# Requirements\n\n## Requirements\n\n### `requirement.r001`\n\nThe system shall identify each capture using a stable capture identity.\n\n#### Ontology elements\n\n| Ontology element |\n| --- |\n| `concept.c001` |\n| `property.p001` |\n";
 
 #[test]
 fn extracts_requirement_with_multiple_references() {
