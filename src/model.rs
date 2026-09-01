@@ -82,6 +82,18 @@ pub struct VocabularyOntologyReference {
     pub ontology_element_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Requirement {
+    pub id: String,
+    pub prose: String,
+    pub ontology_element_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementIndex {
+    pub requirements: Vec<Requirement>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AcceptedArtifactRead {
     pub artifact_id: String,

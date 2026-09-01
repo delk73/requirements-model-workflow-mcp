@@ -241,8 +241,23 @@ independent interpretation of the story.
 
 Defines normative obligations over accepted ontology elements.
 
+Each requirement has a unique, stable artifact-local identity in the form
+`requirement.rNNN`. The identity is assigned independently of requirement prose
+and ordering.
+
+Requirements bind directly to exactly one current accepted controlled
+vocabulary revision. Each requirement references one or more ontology element
+IDs admitted by that exact vocabulary revision. Requirements do not bind
+directly to the domain ontology; ontology IDs are the stable join key carried
+through the vocabulary.
+
 Requirement prose remains normative. Ontology references identify the elements
-that the requirement constrains.
+that the requirement constrains. If the bound vocabulary revision changes, the
+accepted requirements artifact becomes `review_required`.
+
+Requirement decomposition and traceability are separate later workflow stages;
+the requirements artifact contains no parent-child, implementation,
+verification, evidence, or traceability links.
 
 ### Requirement Decomposition
 

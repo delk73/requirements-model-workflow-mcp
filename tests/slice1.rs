@@ -179,9 +179,9 @@ fn system_story_candidate_is_rejected() {
         source_revisions: BTreeMap::new(),
     };
     assert_eq!(
-        store.begin_candidate(identity).unwrap_err(),
-        "only domain framing, domain ontology, and controlled vocabulary candidates are supported"
-    );
+            store.begin_candidate(identity).unwrap_err(),
+            "only domain framing, domain ontology, controlled vocabulary, and requirements candidates are supported"
+        );
 }
 
 #[test]
