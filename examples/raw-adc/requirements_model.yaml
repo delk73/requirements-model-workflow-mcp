@@ -45,3 +45,12 @@ artifacts:
         size: 17547
       sources:
         raw-adc-domain-framing: "sha256:624a96333bc26faa565944fb98edccbf13f8e4aeeece6f6a67b3432c7d23d5de"
+
+  raw-adc-requirements:
+    type: "requirements"
+    representation:
+      path: "requirements.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted: null

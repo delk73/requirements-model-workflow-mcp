@@ -1,7 +1,8 @@
 use crate::{
     digest::{content_digest, revision_handle},
     markdown_ontology::extract_ontology_elements,
-    markdown_vocabulary::extract_ontology_references,
+    markdown_requirements::extract_requirements,
+    markdown_vocabulary::{admitted_ontology_ids, extract_ontology_references},
     model::{
         AcceptedArtifactRead, AcceptedRevision, ArtifactState, CandidateDecision,
         CandidateIdentity, CandidateReviewRequest, ContentDescriptor, Manifest, ModelState,
@@ -215,9 +216,10 @@ impl ModelStore {
         if descriptor.artifact_type != "domain_framing"
             && descriptor.artifact_type != "domain_ontology"
             && descriptor.artifact_type != "controlled_vocabulary"
+            && descriptor.artifact_type != "requirements"
         {
             return Err(
-                "only domain framing, domain ontology, and controlled vocabulary candidates are supported"
+                "only domain framing, domain ontology, controlled vocabulary, and requirements candidates are supported"
                     .into(),
             );
         }
@@ -244,6 +246,9 @@ impl ModelStore {
                 identity.artifact_type.replace('_', " ")
             ));
         }
+        if identity.artifact_type == "requirements" && identity.source_revisions.len() != 1 {
+            return Err("requirements requires exactly one source".into());
+        }
         for (source_id, revision) in &identity.source_revisions {
             let source = manifest
                 .artifacts
@@ -258,6 +263,9 @@ impl ModelStore {
                 }
                 "controlled_vocabulary" if source.artifact_type != "domain_ontology" => {
                     return Err("controlled vocabulary source must be a domain ontology".into());
+                }
+                "requirements" if source.artifact_type != "controlled_vocabulary" => {
+                    return Err("requirements source must be a controlled vocabulary".into());
                 }
                 _ => {}
             }
@@ -311,7 +319,8 @@ impl ModelStore {
                 .next()
                 .ok_or("controlled vocabulary requires an ontology source")?;
             let manifest = self.manifest()?;
-            let ontology = descriptor_for_accepted_source(&manifest, ontology_id)?;
+            let ontology =
+                descriptor_for_accepted_source(&manifest, ontology_id, "domain_ontology")?;
             let ontology_path = self.artifact_path(&ontology.representation.path)?;
             let ontology_bytes = fs::read(&ontology_path)
                 .map_err(|error| format!("cannot read {ontology_id}: {error}"))?;
@@ -341,6 +350,39 @@ impl ModelStore {
                         "unresolved ontology reference: {}",
                         reference.ontology_element_id
                     ));
+                }
+            }
+        } else if identity.artifact_type == "requirements" {
+            let vocabulary_id = identity
+                .source_revisions
+                .keys()
+                .next()
+                .ok_or("requirements requires a vocabulary source")?;
+            let manifest = self.manifest()?;
+            let vocabulary =
+                descriptor_for_accepted_source(&manifest, vocabulary_id, "controlled_vocabulary")?;
+            let vocabulary_path = self.artifact_path(&vocabulary.representation.path)?;
+            let vocabulary_bytes = fs::read(&vocabulary_path)
+                .map_err(|error| format!("cannot read {vocabulary_id}: {error}"))?;
+            verify_content(
+                &vocabulary_bytes,
+                &vocabulary
+                    .accepted
+                    .as_ref()
+                    .ok_or("bound vocabulary has no accepted revision")?
+                    .content,
+            )?;
+            let admitted = admitted_ontology_ids(
+                &String::from_utf8(vocabulary_bytes).map_err(|error| error.to_string())?,
+            )?;
+            let requirements = extract_requirements(&body)?;
+            for requirement in requirements.requirements {
+                for reference in requirement.ontology_element_ids {
+                    if !admitted.contains(&reference) {
+                        return Err(format!(
+                            "ontology reference is not admitted by vocabulary: {reference}"
+                        ));
+                    }
                 }
             }
         }
@@ -900,13 +942,14 @@ impl ModelStore {
 fn descriptor_for_accepted_source<'a>(
     manifest: &'a Manifest,
     artifact_id: &str,
+    expected_type: &str,
 ) -> Result<&'a crate::model::ArtifactDescriptor, String> {
     let descriptor = manifest
         .artifacts
         .get(artifact_id)
         .ok_or_else(|| format!("unknown source {artifact_id}"))?;
-    if descriptor.artifact_type != "domain_ontology" {
-        return Err("controlled vocabulary source must be a domain ontology".into());
+    if descriptor.artifact_type != expected_type {
+        return Err(format!("source must be a {expected_type}"));
     }
     descriptor
         .accepted

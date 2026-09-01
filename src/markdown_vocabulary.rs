@@ -66,6 +66,13 @@ pub fn extract_ontology_references(body: &str) -> Result<Vec<VocabularyOntologyR
     Ok(references)
 }
 
+pub fn admitted_ontology_ids(body: &str) -> Result<std::collections::HashSet<String>, String> {
+    Ok(extract_ontology_references(body)?
+        .into_iter()
+        .map(|reference| reference.ontology_element_id)
+        .collect())
+}
+
 #[derive(Clone, Copy)]
 enum TableState {
     NotStarted,
