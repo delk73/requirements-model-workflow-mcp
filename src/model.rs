@@ -77,6 +77,11 @@ pub struct OntologyElementIndex {
     pub elements: Vec<OntologyElement>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VocabularyOntologyReference {
+    pub ontology_element_id: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AcceptedArtifactRead {
     pub artifact_id: String,
