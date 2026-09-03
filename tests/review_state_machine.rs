@@ -493,7 +493,7 @@ fn duplicate_and_conflicting_decisions_preserve_original_evidence() {
 }
 
 #[test]
-fn evidence_corruption_and_stale_source_are_rejected() {
+fn evidence_corruption_and_source_content_drift_are_rejected() {
     let fixture = Fixture::new();
     fixture
         .store
@@ -538,6 +538,99 @@ fn evidence_corruption_and_stale_source_are_rejected() {
         fs::read(fixture.dir.join("requirements_model.yaml")).unwrap(),
         before.manifest
     );
+}
+
+#[test]
+fn stale_source_revision_rejects_review_of_staged_dependent() {
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
+    let dir = std::env::temp_dir().join(format!(
+        "rmwm-review-stale-source-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    for name in [
+        "requirements_model.yaml",
+        "story.md",
+        "domain_framing.md",
+        "domain_ontology.md",
+    ] {
+        fs::copy(source.join(name), dir.join(name)).unwrap();
+    }
+    let store = ModelStore::open(&dir);
+    let framing_a = accepted_revision(&store, ARTIFACT);
+    let ontology_target = accepted_revision(&store, "raw-adc-domain-ontology");
+    let story = accepted_revision(&store, STORY);
+    let ontology_candidate = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-ontology".into(),
+                artifact_type: "domain_ontology".into(),
+                target_revision: Some(ontology_target.clone()),
+                source_revisions: BTreeMap::from([(ARTIFACT.into(), framing_a.clone())]),
+            },
+            "# Ontology\n\n## Concepts\n\n| ID | Concept |\n| --- | --- |\n| `concept.c001` | Capture |\n\n## Properties\n\n| ID | Property |\n| --- | --- |\n| `property.p001` | Capture identity |\n\n## Relationships\n\n| ID | Relationship |\n| --- | --- |\n| `relationship.r001` | relates to |\n\n## Constraints\n\n* `constraint.k001` A constraint.\n",
+        )
+        .unwrap();
+    let ontology_bytes = fs::read(dir.join("domain_ontology.md")).unwrap();
+    let ontology_before = accepted_revision(&store, "raw-adc-domain-ontology");
+
+    let framing_candidate = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: ARTIFACT.into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(framing_a.clone()),
+                source_revisions: BTreeMap::from([(STORY.into(), story)]),
+            },
+            "# Revised framing\n",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review(ARTIFACT, &framing_candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            ARTIFACT,
+            &framing_candidate.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+    let framing_b = store
+        .accept_candidate(ARTIFACT, &framing_candidate.revision)
+        .unwrap();
+    assert_ne!(framing_b.revision, framing_a);
+
+    let staged_ontology_path = dir.join(".rmwm/staged/raw-adc-domain-ontology.json");
+    let staged_ontology_before = fs::read(&staged_ontology_path).unwrap();
+    let manifest_before = fs::read(dir.join("requirements_model.yaml")).unwrap();
+    let error = store
+        .begin_candidate_review("raw-adc-domain-ontology", &ontology_candidate.revision)
+        .unwrap_err();
+    assert!(
+        error.contains("stale or incorrect source revision"),
+        "{error}"
+    );
+    assert_eq!(ontology_before, ontology_target);
+    assert_eq!(
+        fs::read(dir.join("domain_ontology.md")).unwrap(),
+        ontology_bytes
+    );
+    assert_eq!(
+        fs::read(dir.join("requirements_model.yaml")).unwrap(),
+        manifest_before
+    );
+    assert_eq!(
+        fs::read(staged_ontology_path).unwrap(),
+        staged_ontology_before
+    );
+    fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]
@@ -594,6 +687,11 @@ fn accepted_reacceptance_reports_direct_downstream_impact() {
     let report = store
         .report_affected_downstream_artifacts(ARTIFACT)
         .unwrap();
+    assert_eq!(report.affected_artifacts.len(), 1);
+    assert_eq!(
+        report.affected_artifacts[0].artifact_id,
+        "raw-adc-domain-ontology"
+    );
     let ontology = report
         .affected_artifacts
         .iter()
