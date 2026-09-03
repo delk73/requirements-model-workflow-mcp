@@ -54,3 +54,12 @@ artifacts:
       encoding: "utf-8"
       line_endings: "lf"
     accepted: null
+
+  raw-adc-requirement-decomposition:
+    type: "requirement_decomposition"
+    representation:
+      path: "requirement_decomposition.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted: null

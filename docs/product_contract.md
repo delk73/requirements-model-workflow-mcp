@@ -264,6 +264,15 @@ verification, evidence, or traceability links.
 Relates parent requirements to more specific requirements without prescribing a
 universal set of requirement levels.
 
+The artifact binds directly to exactly one accepted `requirements` revision and
+has no direct lifecycle binding to vocabulary or ontology. Each requirement is
+represented once under `## Decomposition` as a `###` parent section. A parent
+contains either a direct `#### Child requirements` list, followed by required
+`#### Ontology basis` and optional `#### Rationale`, or an explicit `#### No
+further decomposition` outcome. These outcomes are exclusive, and every requirement
+must receive exactly one disposition. Parent-child links form a DAG, not
+necessarily a tree; a child may have multiple parents.
+
 Each accepted requirement shall have one or more accepted child requirements or
 an explicit and approved no-further-decomposition outcome. The guarded
 no-additional-content rules above apply to that outcome. Each child requirement
