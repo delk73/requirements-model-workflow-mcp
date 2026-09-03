@@ -94,6 +94,27 @@ pub struct RequirementIndex {
     pub requirements: Vec<Requirement>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementDecompositionIndex {
+    pub parents: Vec<RequirementDecomposition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementDecomposition {
+    pub parent_requirement_id: String,
+    pub outcome: RequirementDecompositionOutcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequirementDecompositionOutcome {
+    Children {
+        child_requirement_ids: Vec<String>,
+        ontology_basis_ids: Vec<String>,
+        rationale: Option<String>,
+    },
+    NoFurtherDecomposition,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AcceptedArtifactRead {
     pub artifact_id: String,

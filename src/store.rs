@@ -1,5 +1,6 @@
 use crate::{
     digest::{content_digest, revision_handle},
+    markdown_decomposition::extract_requirement_decomposition,
     markdown_ontology::extract_ontology_elements,
     markdown_requirements::extract_requirements,
     markdown_vocabulary::{admitted_ontology_ids, extract_ontology_references},
@@ -217,9 +218,10 @@ impl ModelStore {
             && descriptor.artifact_type != "domain_ontology"
             && descriptor.artifact_type != "controlled_vocabulary"
             && descriptor.artifact_type != "requirements"
+            && descriptor.artifact_type != "requirement_decomposition"
         {
             return Err(
-                "only domain framing, domain ontology, controlled vocabulary, and requirements candidates are supported"
+                "only domain framing, domain ontology, controlled vocabulary, requirements, and requirement decomposition candidates are supported"
                     .into(),
             );
         }
@@ -249,6 +251,11 @@ impl ModelStore {
         if identity.artifact_type == "requirements" && identity.source_revisions.len() != 1 {
             return Err("requirements requires exactly one source".into());
         }
+        if identity.artifact_type == "requirement_decomposition"
+            && identity.source_revisions.len() != 1
+        {
+            return Err("requirement decomposition requires exactly one source".into());
+        }
         for (source_id, revision) in &identity.source_revisions {
             let source = manifest
                 .artifacts
@@ -266,6 +273,9 @@ impl ModelStore {
                 }
                 "requirements" if source.artifact_type != "controlled_vocabulary" => {
                     return Err("requirements source must be a controlled vocabulary".into());
+                }
+                "requirement_decomposition" if source.artifact_type != "requirements" => {
+                    return Err("requirement decomposition source must be requirements".into());
                 }
                 _ => {}
             }
@@ -384,6 +394,130 @@ impl ModelStore {
                         ));
                     }
                 }
+            }
+        } else if identity.artifact_type == "requirement_decomposition" {
+            let requirements_id = identity
+                .source_revisions
+                .keys()
+                .next()
+                .ok_or("requirement decomposition requires a requirements source")?;
+            let manifest = self.manifest()?;
+            let requirements_descriptor =
+                descriptor_for_accepted_source(&manifest, requirements_id, "requirements")?;
+            let requirements_path =
+                self.artifact_path(&requirements_descriptor.representation.path)?;
+            let requirements_bytes = fs::read(&requirements_path)
+                .map_err(|error| format!("cannot read {requirements_id}: {error}"))?;
+            verify_content(
+                &requirements_bytes,
+                &requirements_descriptor.accepted.as_ref().unwrap().content,
+            )?;
+            let requirement_index = extract_requirements(
+                &String::from_utf8(requirements_bytes).map_err(|error| error.to_string())?,
+            )?;
+            let decomposition = extract_requirement_decomposition(&body)?;
+            let requirement_ids: std::collections::HashSet<_> = requirement_index
+                .requirements
+                .iter()
+                .map(|requirement| requirement.id.as_str())
+                .collect();
+            let mut edges = BTreeMap::<&str, Vec<&str>>::new();
+            for parent in &decomposition.parents {
+                if !requirement_ids.contains(parent.parent_requirement_id.as_str()) {
+                    return Err(format!(
+                        "unknown parent requirement: {}",
+                        parent.parent_requirement_id
+                    ));
+                }
+                if let crate::model::RequirementDecompositionOutcome::Children {
+                    child_requirement_ids,
+                    ontology_basis_ids,
+                    ..
+                } = &parent.outcome
+                {
+                    let parent_refs = requirement_index
+                        .requirements
+                        .iter()
+                        .find(|requirement| requirement.id == parent.parent_requirement_id)
+                        .unwrap()
+                        .ontology_element_ids
+                        .iter()
+                        .map(String::as_str)
+                        .collect::<std::collections::HashSet<_>>();
+                    let mut allowed_refs = parent_refs.clone();
+                    for child in child_requirement_ids {
+                        if !requirement_ids.contains(child.as_str()) {
+                            return Err(format!("unknown child requirement: {child}"));
+                        }
+                        allowed_refs.extend(
+                            requirement_index
+                                .requirements
+                                .iter()
+                                .find(|requirement| requirement.id == *child)
+                                .unwrap()
+                                .ontology_element_ids
+                                .iter()
+                                .map(String::as_str),
+                        );
+                    }
+                    if let Some(basis) = ontology_basis_ids
+                        .iter()
+                        .find(|basis| !allowed_refs.contains(basis.as_str()))
+                    {
+                        return Err(format!(
+                            "ontology basis is not represented by parent or child: {basis}"
+                        ));
+                    }
+                    for child in child_requirement_ids {
+                        if child == &parent.parent_requirement_id {
+                            return Err(format!(
+                                "self-link in parent {}",
+                                parent.parent_requirement_id
+                            ));
+                        }
+                        if !requirement_ids.contains(child.as_str()) {
+                            return Err(format!("unknown child requirement: {child}"));
+                        }
+                        edges
+                            .entry(parent.parent_requirement_id.as_str())
+                            .or_default()
+                            .push(child.as_str());
+                    }
+                }
+            }
+            if decomposition.parents.len() != requirement_index.requirements.len() {
+                return Err("decomposition does not cover every requirement exactly once".into());
+            }
+            fn visit<'a>(
+                node: &'a str,
+                edges: &BTreeMap<&'a str, Vec<&'a str>>,
+                visiting: &mut std::collections::HashSet<&'a str>,
+                visited: &mut std::collections::HashSet<&'a str>,
+            ) -> bool {
+                if visiting.contains(node) {
+                    return false;
+                }
+                if !visited.insert(node) {
+                    return true;
+                }
+                visiting.insert(node);
+                if edges.get(node).is_some_and(|children| {
+                    children
+                        .iter()
+                        .any(|child| !visit(child, edges, visiting, visited))
+                }) {
+                    return false;
+                }
+                visiting.remove(node);
+                true
+            }
+            let mut visiting = std::collections::HashSet::new();
+            let mut visited = std::collections::HashSet::new();
+            if edges
+                .keys()
+                .any(|node| !visit(node, &edges, &mut visiting, &mut visited))
+            {
+                return Err("decomposition contains a cycle".into());
             }
         }
         let frontmatter = format!(
