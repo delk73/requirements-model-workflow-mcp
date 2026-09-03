@@ -35,3 +35,29 @@ Workflow-managed artifacts use controlled frontmatter for stable artifact
 identity and type. The requirements-model manifest identifies accepted
 revisions and source bindings. Staged-candidate state remains owned by the
 MCP.
+
+## Raw ADC MCP reference run
+
+A developer-facing grounding run that exercises the real MCP STDIO
+JSON-RPC surface end to end: it launches the built server as a child
+process, drives it through `initialize`, `tools/list`, and the
+candidate/review/acceptance lifecycle for the Raw ADC example, then
+reaccepts an upstream `requirements` artifact and confirms an accepted
+`requirement_decomposition` artifact transitions to `review_required`.
+
+Run it with:
+
+```sh
+cargo run --bin raw_adc_reference_run
+```
+
+Expected result:
+
+```
+RESULT: PASS
+```
+
+The run operates on an isolated temporary copy of
+[examples/raw-adc](examples/raw-adc/) and never modifies the checked-in
+example.
+
