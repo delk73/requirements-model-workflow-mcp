@@ -1,4 +1,11 @@
-use requirements_model_workflow_mcp::{model::CandidateIdentity, store::ModelStore};
+use requirements_model_workflow_mcp::{
+    digest::{content_digest, revision_handle},
+    model::{
+        AcceptedRevision, ArtifactDescriptor, CandidateIdentity, ContentDescriptor, Manifest,
+        Representation,
+    },
+    store::ModelStore,
+};
 use std::{
     collections::BTreeMap,
     fs,
@@ -301,7 +308,7 @@ fn vocabulary_candidate_rejects_non_current_ontology_source() {
 
 #[test]
 fn vocabulary_candidate_rejects_legacy_ontology_without_stable_index() {
-    let (dir, store, _story_revision, _framing_revision, ontology_revision) = fixture();
+    let (dir, store, ontology_revision) = legacy_ontology_fixture();
     let error = store
         .stage_candidate(
             vocabulary_identity(None, ontology_revision),
@@ -310,6 +317,78 @@ fn vocabulary_candidate_rejects_legacy_ontology_without_stable_index() {
         .unwrap_err();
     assert!(error.contains("bound ontology cannot provide required stable ontology-element index"));
     fs::remove_dir_all(dir).unwrap();
+}
+
+/// Builds a temporary model whose accepted domain ontology predates the
+/// stable ontology-element ID contract, grandfathered in directly (bypassing
+/// stage_candidate's validation) the way an old accepted artifact would be.
+fn legacy_ontology_fixture() -> (PathBuf, ModelStore, String) {
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
+    let dir = std::env::temp_dir().join(format!(
+        "rmwm-vocab-legacy-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    for name in ["requirements_model.yaml", "story.md", "domain_framing.md"] {
+        fs::copy(source.join(name), dir.join(name)).unwrap();
+    }
+
+    let manifest_path = dir.join("requirements_model.yaml");
+    let mut manifest: Manifest =
+        serde_yaml::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    let framing_revision = manifest
+        .artifacts
+        .get(FRAMING_ARTIFACT)
+        .unwrap()
+        .accepted
+        .as_ref()
+        .unwrap()
+        .revision
+        .clone();
+
+    let bytes = b"---\nrmwm:\n  schema: \"artifact/v1\"\n  id: \"raw-adc-domain-ontology\"\n  type: \"domain_ontology\"\n---\n\n# Legacy Ontology\n\n## Concepts\n\n| Concept | Meaning |\n| --- | --- |\n| Capture | A capture. |\n".to_vec();
+    let digest = content_digest(&bytes);
+    let revision = revision_handle(
+        "raw-adc",
+        ONTOLOGY_ARTIFACT,
+        "domain_ontology",
+        "domain_ontology",
+        &digest,
+        &[(FRAMING_ARTIFACT.to_owned(), framing_revision.clone())],
+    );
+    manifest
+        .artifacts
+        .get_mut(ONTOLOGY_ARTIFACT)
+        .unwrap()
+        .accepted = Some(AcceptedRevision {
+        revision: revision.clone(),
+        content: ContentDescriptor {
+            digest,
+            size: bytes.len(),
+        },
+        sources: BTreeMap::from([(FRAMING_ARTIFACT.to_owned(), framing_revision)]),
+    });
+    manifest.artifacts.insert(
+        VOCABULARY_ARTIFACT.to_owned(),
+        ArtifactDescriptor {
+            artifact_type: "controlled_vocabulary".into(),
+            representation: Representation {
+                path: "controlled_vocabulary.md".into(),
+                media_type: "text/markdown".into(),
+                encoding: "utf-8".into(),
+                line_endings: "lf".into(),
+            },
+            accepted: None,
+        },
+    );
+    fs::write(&manifest_path, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+    fs::write(dir.join("domain_ontology.md"), &bytes).unwrap();
+
+    let store = ModelStore::open(&dir);
+    (dir, store, revision)
 }
 
 #[test]

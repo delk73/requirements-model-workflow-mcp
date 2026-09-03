@@ -13,71 +13,71 @@ The ontology addresses all competency questions in the domain framing.
 
 ## Concepts
 
-| Concept | Relational equivalent | Meaning |
-| --- | --- | --- |
-| Capture | Record type | Candidate grouping for raw ADC sampling |
-| Raw ADC Record | Record type | The raw record produced from a captured ADC sample |
-| Acquisition Context | Record type | Information needed to interpret acquired raw ADC data |
-| Capture Timing Basis | Record type | Timing information used to interpret samples from a capture |
-| Captured Sample | Record type | One ADC sample that results in a raw ADC record |
-| Sample Timing Observation | Record type | A retained timing observation for one captured sample |
-| DRV425EVM | Record type | The sensing device that produces the analog output presented for capture |
-| Analog Output | Record type | The DRV425EVM output received during a capture |
+| ID | Concept | Relational equivalent | Meaning |
+| --- | --- | --- | --- |
+| `concept.c001` | Capture | Record type | Candidate grouping for raw ADC sampling |
+| `concept.c002` | Raw ADC Record | Record type | The raw record produced from a captured ADC sample |
+| `concept.c003` | Acquisition Context | Record type | Information needed to interpret acquired raw ADC data |
+| `concept.c004` | Capture Timing Basis | Record type | Timing information used to interpret samples from a capture |
+| `concept.c005` | Captured Sample | Record type | One ADC sample that results in a raw ADC record |
+| `concept.c006` | Sample Timing Observation | Record type | A retained timing observation for one captured sample |
+| `concept.c007` | DRV425EVM | Record type | The sensing device that produces the analog output presented for capture |
+| `concept.c008` | Analog Output | Record type | The DRV425EVM output received during a capture |
 
 ## Properties
 
-| Concept | Property | Purpose |
-| --- | --- | --- |
-| Capture | Capture identity | Distinguishes one capture from another |
-| Raw ADC Record | Record identity | Distinguishes records produced during a capture |
-| Raw ADC Record | Acceptance status | States whether the record was accepted or rejected |
-| Acquisition Context | Context identity | Distinguishes one acquisition context from another |
-| Capture Timing Basis | Timing basis identity | Distinguishes one capture timing basis from another |
-| Captured Sample | Sample identity | Distinguishes one captured sample from another |
-| Captured Sample | Capture order position | Establishes the sample’s relative position within its capture |
-| Sample Timing Observation | Timing observation identity | Distinguishes one sample timing observation from another |
-| Analog Output | Analog output identity | Distinguishes one analog output from another |
+| ID | Concept | Property | Purpose |
+| --- | --- | --- | --- |
+| `property.p001` | Capture | Capture identity | Distinguishes one capture from another |
+| `property.p002` | Raw ADC Record | Record identity | Distinguishes records produced during a capture |
+| `property.p003` | Raw ADC Record | Acceptance status | States whether the record was accepted or rejected |
+| `property.p004` | Acquisition Context | Context identity | Distinguishes one acquisition context from another |
+| `property.p005` | Capture Timing Basis | Timing basis identity | Distinguishes one capture timing basis from another |
+| `property.p006` | Captured Sample | Sample identity | Distinguishes one captured sample from another |
+| `property.p007` | Captured Sample | Capture order position | Establishes the sample’s relative position within its capture |
+| `property.p008` | Sample Timing Observation | Timing observation identity | Distinguishes one sample timing observation from another |
+| `property.p009` | Analog Output | Analog output identity | Distinguishes one analog output from another |
 
 The representation of each property remains unresolved.
 
 ## Relationships
 
-| Source | Relationship | Target |
-| --- | --- | --- |
-| Capture | produces | Raw ADC Record |
-| Capture | uses | Acquisition Context |
-| Acquisition Context | identifies | Capture Timing Basis |
-| Raw ADC Record | results from | Captured Sample |
-| Captured Sample | has | Sample Timing Observation |
-| Raw ADC Record | has | Acquisition Context |
-| DRV425EVM | produces | Analog Output |
-| Capture | receives | Analog Output |
-| Analog Output | is sampled to produce | Captured Sample |
+| ID | Source | Relationship | Target |
+| --- | --- | --- | --- |
+| `relationship.r001` | Capture | produces | Raw ADC Record |
+| `relationship.r002` | Capture | uses | Acquisition Context |
+| `relationship.r003` | Acquisition Context | identifies | Capture Timing Basis |
+| `relationship.r004` | Raw ADC Record | results from | Captured Sample |
+| `relationship.r005` | Captured Sample | has | Sample Timing Observation |
+| `relationship.r006` | Raw ADC Record | has | Acquisition Context |
+| `relationship.r007` | DRV425EVM | produces | Analog Output |
+| `relationship.r008` | Capture | receives | Analog Output |
+| `relationship.r009` | Analog Output | is sampled to produce | Captured Sample |
 
 ## Constraints
 
-* Each captured sample results in exactly one raw ADC record.
-* Each raw ADC record results from exactly one captured sample.
-* Each raw ADC record is produced during exactly one capture.
-* Each raw ADC record has exactly one acceptance status, either `accepted` or
+* `constraint.k001` Each captured sample results in exactly one raw ADC record.
+* `constraint.k002` Each raw ADC record results from exactly one captured sample.
+* `constraint.k003` Each raw ADC record is produced during exactly one capture.
+* `constraint.k004` Each raw ADC record has exactly one acceptance status, either `accepted` or
   `rejected`.
-* Each captured sample has exactly one capture order position within its capture.
-* No two captured samples in the same capture have the same capture order position.
-* Capture order positions place all samples within a capture in one unambiguous order.
-* The Capture order position of each Captured Sample is retained.
-* Each Captured Sample has zero or more Sample Timing Observations.
-* Each Sample Timing Observation belongs to exactly one Captured Sample.
-* Each accepted raw ADC record is retained.
-* Each Acquisition Context used by a Capture is capture-level context for the Raw
+* `constraint.k005` Each captured sample has exactly one capture order position within its capture.
+* `constraint.k006` No two captured samples in the same capture have the same capture order position.
+* `constraint.k007` Capture order positions place all samples within a capture in one unambiguous order.
+* `constraint.k008` The Capture order position of each Captured Sample is retained.
+* `constraint.k009` Each Captured Sample has zero or more Sample Timing Observations.
+* `constraint.k010` Each Sample Timing Observation belongs to exactly one Captured Sample.
+* `constraint.k011` Each accepted raw ADC record is retained.
+* `constraint.k012` Each Acquisition Context used by a Capture is capture-level context for the Raw
   ADC Records produced during that Capture.
-* Every Capture has at least one Capture Timing Basis identified by an Acquisition
+* `constraint.k013` Every Capture has at least one Capture Timing Basis identified by an Acquisition
   Context it uses.
-* Each Capture’s timing bases are retained.
-* A Capture’s timing bases apply to every Captured Sample in that Capture.
-* Each Acquisition Context that a Raw ADC Record has is record-level context for
+* `constraint.k014` Each Capture’s timing bases are retained.
+* `constraint.k015` A Capture’s timing bases apply to every Captured Sample in that Capture.
+* `constraint.k016` Each Acquisition Context that a Raw ADC Record has is record-level context for
   that Raw ADC Record.
-* Each Acquisition Context applicable to an accepted Raw ADC Record is retained.
-* Each analog output received during a capture is produced by a DRV425EVM.
+* `constraint.k017` Each Acquisition Context applicable to an accepted Raw ADC Record is retained.
+* `constraint.k018` Each analog output received during a capture is produced by a DRV425EVM.
 
 ## Probe Propositions
 

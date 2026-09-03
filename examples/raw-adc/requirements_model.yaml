@@ -39,12 +39,27 @@ artifacts:
       encoding: "utf-8"
       line_endings: "lf"
     accepted:
-      revision: "sha256:7bd49b66445c4d16b3f3d83f94d2df17d76bdf188333cfda20c6d0d3efaba90b"
+      revision: "sha256:1621be56e55d1f1bedcbf2261e3da2f7c0b95b9c419e838209abb2c2fe06dad5"
       content:
-        digest: "sha256:3caf48e6fc4cc328e49f102bc881ef48f5ea27af48fe3e23cf20d585727cfc72"
-        size: 17547
+        digest: "sha256:e7db5cd8ff7b1705ae35f4e61997aa8f68a563250e31b3d1aa534ada6fb8baf0"
+        size: 18400
       sources:
         raw-adc-domain-framing: "sha256:624a96333bc26faa565944fb98edccbf13f8e4aeeece6f6a67b3432c7d23d5de"
+
+  raw-adc-controlled-vocabulary:
+    type: "controlled_vocabulary"
+    representation:
+      path: "controlled_vocabulary.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted:
+      revision: "sha256:0e2724c6ef0e8269af472ccfa2a519e57b6dd4067eab43e96ba87288549eb655"
+      content:
+        digest: "sha256:3fdf87a9ef0be3639ad7af5ad353dcc4171c68c0dac5c2477691b0cfaafd7fba"
+        size: 413
+      sources:
+        raw-adc-domain-ontology: "sha256:1621be56e55d1f1bedcbf2261e3da2f7c0b95b9c419e838209abb2c2fe06dad5"
 
   raw-adc-requirements:
     type: "requirements"
