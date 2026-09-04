@@ -262,16 +262,29 @@ verification, evidence, or traceability links.
 ### Traceability
 
 Traceability is a descriptive artifact containing explicit directed links among
-accepted ontology elements and requirements. Links use a managed `## Trace
-Links` Markdown table with source artifact, source element, relationship, target
-artifact, and target element columns. Initial relationship kinds are `refines`,
-`derives_from`, and `traces_to`.
+accepted ontology elements, requirements, and implementation targets. Links use
+a managed `## Trace Links` Markdown table with source artifact, source element,
+relationship, target artifact, and target element columns. The relationship
+vocabulary is `refines`, `derives_from`, and `traces_to`.
 
-Traceability binds directly to the accepted revisions of every referenced
-ontology or requirements artifact. Links are validated against those exact
-revisions, but source changes only invalidate traceability when it directly
-binds that source. Implementation, verification, execution evidence,
-transitive propagation, and generic graph behavior remain deferred.
+Implementation targets are recorded in a separate `implementation` artifact
+under `## Implementation Targets`. Each target has a stable
+`implementation.iNNN` ID, a full 40-character hexadecimal Git commit SHA, a
+repository-relative path, and an opaque non-empty symbol. Paths cannot be
+absolute or escape the repository. The implementation artifact is the
+authoritative resolver for implementation IDs; Git is not inspected.
+
+The only implementation trace in this scope is
+`requirement.rNNN` `traces_to` `implementation.iNNN`. A traceability artifact
+binds exactly to the accepted revisions of every artifact referenced by its
+links, including the implementation artifact. Reaccepting an implementation
+artifact makes directly bound traceability `review_required`; requirements and
+unrelated artifacts remain unchanged. Code changes alone do not change
+workflow state; the operator explicitly updates and reaccepts the
+implementation artifact.
+
+Verification traceability, execution evidence, bounded evaluation, transitive
+lifecycle propagation, and source-code annotations remain deferred.
 
 ### Requirement Decomposition
 
@@ -293,20 +306,6 @@ no-additional-content rules above apply to that outcome. Each child requirement
 shall reference at least one accepted parent requirement and accepted ontology
 elements. Decomposition shall contain no cycles. Human review determines
 whether each child preserves and refines its parent's meaning.
-
-### Traceability
-
-Records typed links among sources, ontology elements, vocabulary terms,
-requirements, decomposition, implementation references, verification
-references, and evidence references.
-
-At workflow completion, each accepted requirement shall have a trace path
-through accepted ontology elements to the accepted domain framing. Each child
-requirement shall trace to an accepted parent requirement.
-
-Implementation, verification, and evidence links are optional. Each link that
-exists shall connect an accepted workflow element to a structurally valid
-external reference.
 
 ## Review Lifecycle
 

@@ -1,6 +1,7 @@
 use crate::{
     digest::{content_digest, revision_handle},
     markdown_decomposition::extract_requirement_decomposition,
+    markdown_implementation::extract_implementations,
     markdown_ontology::extract_ontology_elements,
     markdown_requirements::extract_requirements,
     markdown_traceability::extract_traceability,
@@ -220,10 +221,11 @@ impl ModelStore {
             && descriptor.artifact_type != "controlled_vocabulary"
             && descriptor.artifact_type != "requirements"
             && descriptor.artifact_type != "requirement_decomposition"
+            && descriptor.artifact_type != "implementation"
             && descriptor.artifact_type != "traceability"
         {
             return Err(
-                "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, and traceability candidates are supported"
+                "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, implementation, and traceability candidates are supported"
                     .into(),
             );
         }
@@ -284,10 +286,11 @@ impl ModelStore {
                 }
                 "traceability"
                     if source.artifact_type != "domain_ontology"
-                        && source.artifact_type != "requirements" =>
+                        && source.artifact_type != "requirements"
+                        && source.artifact_type != "implementation" =>
                 {
                     return Err(
-                        "traceability sources must be domain ontology or requirements".into(),
+                        "traceability sources must be domain ontology, requirements, or implementation".into(),
                     );
                 }
                 _ => {}
@@ -335,6 +338,8 @@ impl ModelStore {
         }
         if identity.artifact_type == "domain_ontology" {
             extract_ontology_elements(&body)?;
+        } else if identity.artifact_type == "implementation" {
+            extract_implementations(&body)?;
         } else if identity.artifact_type == "controlled_vocabulary" {
             let ontology_id = identity
                 .source_revisions
@@ -553,6 +558,31 @@ impl ModelStore {
                 return Err("traceability source bindings must match referenced artifacts".into());
             }
             for link in traceability.links {
+                let source = manifest
+                    .artifacts
+                    .get(&link.source_artifact_id)
+                    .ok_or_else(|| {
+                        format!("missing referenced artifact: {}", link.source_artifact_id)
+                    })?;
+                let target = manifest
+                    .artifacts
+                    .get(&link.target_artifact_id)
+                    .ok_or_else(|| {
+                        format!("missing referenced artifact: {}", link.target_artifact_id)
+                    })?;
+                if source.artifact_type == "implementation"
+                    || target.artifact_type == "implementation"
+                {
+                    if !(source.artifact_type == "requirements"
+                        && target.artifact_type == "implementation"
+                        && link.relationship == "traces_to")
+                    {
+                        return Err(
+                            "implementation trace must be a requirement traces_to implementation link"
+                                .into(),
+                        );
+                    }
+                }
                 for (artifact_id, element_id) in [
                     (link.source_artifact_id, link.source_element_id),
                     (link.target_artifact_id, link.target_element_id),
@@ -577,6 +607,10 @@ impl ModelStore {
                             .requirements
                             .iter()
                             .any(|requirement| requirement.id == element_id),
+                        "implementation" => extract_implementations(&text)?
+                            .targets
+                            .iter()
+                            .any(|target| target.id == element_id),
                         _ => false,
                     };
                     if !found {
