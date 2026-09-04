@@ -262,7 +262,8 @@ verification, evidence, or traceability links.
 ### Traceability
 
 Traceability is a descriptive artifact containing explicit directed links among
-accepted ontology elements, requirements, and implementation targets. Links use
+accepted ontology elements, requirements, implementation targets, and
+verification targets. Links use
 a managed `## Trace Links` Markdown table with source artifact, source element,
 relationship, target artifact, and target element columns. The relationship
 vocabulary is `refines`, `derives_from`, and `traces_to`.
@@ -283,8 +284,21 @@ unrelated artifacts remain unchanged. Code changes alone do not change
 workflow state; the operator explicitly updates and reaccepts the
 implementation artifact.
 
-Verification traceability, execution evidence, bounded evaluation, transitive
-lifecycle propagation, and source-code annotations remain deferred.
+Verification targets are recorded in a separate `verification` artifact under
+`## Verification Targets`. Each target has a stable `verification.vNNN` ID, a
+full 40-character hexadecimal Git commit SHA, a repository-relative path, and
+an opaque non-empty test locator. Paths cannot be absolute or escape the
+repository. The verification artifact is the authoritative resolver for
+verification IDs; Git is not inspected. The only verification trace in this
+scope is `requirement.rNNN` `traces_to` `verification.vNNN`.
+
+A traceability artifact containing a verification link binds exactly to the
+accepted requirements artifact, accepted verification artifact, and every
+other artifact referenced by its links. Reaccepting a verification artifact
+makes directly bound traceability `review_required`; requirements and
+unrelated artifacts remain unchanged. Code changes alone do not change
+workflow state; the operator explicitly updates and reaccepts the verification
+artifact. Execution evidence remains deferred.
 
 ### Requirement Decomposition
 

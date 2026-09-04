@@ -7,3 +7,4 @@
 | raw-adc-requirements | `requirement.r001` | traces_to | raw-adc-domain-ontology | `concept.c001` |
 | raw-adc-domain-ontology | `concept.c001` | refines | raw-adc-requirements | `requirement.r001` |
 | raw-adc-requirements | `requirement.r001` | traces_to | raw-adc-implementation | `implementation.i001` |
+| raw-adc-requirements | `requirement.r001` | traces_to | raw-adc-verification | `verification.v001` |
