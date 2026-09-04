@@ -3,6 +3,7 @@ use crate::{
     markdown_decomposition::extract_requirement_decomposition,
     markdown_ontology::extract_ontology_elements,
     markdown_requirements::extract_requirements,
+    markdown_traceability::extract_traceability,
     markdown_vocabulary::{admitted_ontology_ids, extract_ontology_references},
     model::{
         AcceptedArtifactRead, AcceptedRevision, ArtifactState, CandidateDecision,
@@ -219,9 +220,10 @@ impl ModelStore {
             && descriptor.artifact_type != "controlled_vocabulary"
             && descriptor.artifact_type != "requirements"
             && descriptor.artifact_type != "requirement_decomposition"
+            && descriptor.artifact_type != "traceability"
         {
             return Err(
-                "only domain framing, domain ontology, controlled vocabulary, requirements, and requirement decomposition candidates are supported"
+                "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, and traceability candidates are supported"
                     .into(),
             );
         }
@@ -256,6 +258,9 @@ impl ModelStore {
         {
             return Err("requirement decomposition requires exactly one source".into());
         }
+        if identity.artifact_type == "traceability" && identity.source_revisions.is_empty() {
+            return Err("traceability requires at least one source".into());
+        }
         for (source_id, revision) in &identity.source_revisions {
             let source = manifest
                 .artifacts
@@ -276,6 +281,14 @@ impl ModelStore {
                 }
                 "requirement_decomposition" if source.artifact_type != "requirements" => {
                     return Err("requirement decomposition source must be requirements".into());
+                }
+                "traceability"
+                    if source.artifact_type != "domain_ontology"
+                        && source.artifact_type != "requirements" =>
+                {
+                    return Err(
+                        "traceability sources must be domain ontology or requirements".into(),
+                    );
                 }
                 _ => {}
             }
@@ -518,6 +531,58 @@ impl ModelStore {
                 .any(|node| !visit(node, &edges, &mut visiting, &mut visited))
             {
                 return Err("decomposition contains a cycle".into());
+            }
+        } else if identity.artifact_type == "traceability" {
+            let manifest = self.manifest()?;
+            let traceability = extract_traceability(&body)?;
+            let referenced: std::collections::HashSet<_> = traceability
+                .links
+                .iter()
+                .flat_map(|link| {
+                    [
+                        link.source_artifact_id.as_str(),
+                        link.target_artifact_id.as_str(),
+                    ]
+                })
+                .collect();
+            if referenced.len() != identity.source_revisions.len()
+                || referenced
+                    .iter()
+                    .any(|id| !identity.source_revisions.contains_key(*id))
+            {
+                return Err("traceability source bindings must match referenced artifacts".into());
+            }
+            for link in traceability.links {
+                for (artifact_id, element_id) in [
+                    (link.source_artifact_id, link.source_element_id),
+                    (link.target_artifact_id, link.target_element_id),
+                ] {
+                    let descriptor = manifest
+                        .artifacts
+                        .get(&artifact_id)
+                        .ok_or_else(|| format!("missing referenced artifact: {artifact_id}"))?;
+                    let accepted = descriptor.accepted.as_ref().ok_or_else(|| {
+                        format!("referenced artifact is not accepted: {artifact_id}")
+                    })?;
+                    let bytes = fs::read(self.artifact_path(&descriptor.representation.path)?)
+                        .map_err(|error| error.to_string())?;
+                    verify_content(&bytes, &accepted.content)?;
+                    let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
+                    let found = match descriptor.artifact_type.as_str() {
+                        "domain_ontology" => extract_ontology_elements(&text)?
+                            .elements
+                            .iter()
+                            .any(|element| element.id == element_id),
+                        "requirements" => extract_requirements(&text)?
+                            .requirements
+                            .iter()
+                            .any(|requirement| requirement.id == element_id),
+                        _ => false,
+                    };
+                    if !found {
+                        return Err(format!("unresolved trace element: {element_id}"));
+                    }
+                }
             }
         }
         let frontmatter = format!(

@@ -78,3 +78,12 @@ artifacts:
       encoding: "utf-8"
       line_endings: "lf"
     accepted: null
+
+  raw-adc-traceability:
+    type: "traceability"
+    representation:
+      path: "traceability.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted: null
