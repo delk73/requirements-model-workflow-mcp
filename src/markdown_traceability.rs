@@ -122,6 +122,7 @@ fn valid_element_id(value: &str) -> bool {
         "constraint.k",
         "requirement.r",
         "implementation.i",
+        "verification.v",
     ]
     .iter()
     .any(|prefix| {

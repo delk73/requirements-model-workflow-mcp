@@ -5,6 +5,7 @@ use crate::{
     markdown_ontology::extract_ontology_elements,
     markdown_requirements::extract_requirements,
     markdown_traceability::extract_traceability,
+    markdown_verification::extract_verifications,
     markdown_vocabulary::{admitted_ontology_ids, extract_ontology_references},
     model::{
         AcceptedArtifactRead, AcceptedRevision, ArtifactState, CandidateDecision,
@@ -222,10 +223,11 @@ impl ModelStore {
             && descriptor.artifact_type != "requirements"
             && descriptor.artifact_type != "requirement_decomposition"
             && descriptor.artifact_type != "implementation"
+            && descriptor.artifact_type != "verification"
             && descriptor.artifact_type != "traceability"
         {
             return Err(
-                "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, implementation, and traceability candidates are supported"
+                "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, implementation, verification, and traceability candidates are supported"
                     .into(),
             );
         }
@@ -287,10 +289,11 @@ impl ModelStore {
                 "traceability"
                     if source.artifact_type != "domain_ontology"
                         && source.artifact_type != "requirements"
-                        && source.artifact_type != "implementation" =>
+                        && source.artifact_type != "implementation"
+                        && source.artifact_type != "verification" =>
                 {
                     return Err(
-                        "traceability sources must be domain ontology, requirements, or implementation".into(),
+                        "traceability sources must be domain ontology, requirements, implementation, or verification".into(),
                     );
                 }
                 _ => {}
@@ -340,6 +343,8 @@ impl ModelStore {
             extract_ontology_elements(&body)?;
         } else if identity.artifact_type == "implementation" {
             extract_implementations(&body)?;
+        } else if identity.artifact_type == "verification" {
+            extract_verifications(&body)?;
         } else if identity.artifact_type == "controlled_vocabulary" {
             let ontology_id = identity
                 .source_revisions
@@ -583,6 +588,18 @@ impl ModelStore {
                         );
                     }
                 }
+                if source.artifact_type == "verification" || target.artifact_type == "verification"
+                {
+                    if !(source.artifact_type == "requirements"
+                        && target.artifact_type == "verification"
+                        && link.relationship == "traces_to")
+                    {
+                        return Err(
+                            "verification trace must be a requirement traces_to verification link"
+                                .into(),
+                        );
+                    }
+                }
                 for (artifact_id, element_id) in [
                     (link.source_artifact_id, link.source_element_id),
                     (link.target_artifact_id, link.target_element_id),
@@ -608,6 +625,10 @@ impl ModelStore {
                             .iter()
                             .any(|requirement| requirement.id == element_id),
                         "implementation" => extract_implementations(&text)?
+                            .targets
+                            .iter()
+                            .any(|target| target.id == element_id),
+                        "verification" => extract_verifications(&text)?
                             .targets
                             .iter()
                             .any(|target| target.id == element_id),

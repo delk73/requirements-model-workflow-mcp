@@ -4,6 +4,7 @@ pub mod markdown_implementation;
 pub mod markdown_ontology;
 pub mod markdown_requirements;
 pub mod markdown_traceability;
+pub mod markdown_verification;
 pub mod markdown_vocabulary;
 pub mod model;
 pub mod protocol;

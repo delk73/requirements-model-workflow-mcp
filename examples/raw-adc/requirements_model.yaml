@@ -79,6 +79,15 @@ artifacts:
       line_endings: "lf"
     accepted: null
 
+  raw-adc-verification:
+    type: "verification"
+    representation:
+      path: "verification.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted: null
+
   raw-adc-requirement-decomposition:
     type: "requirement_decomposition"
     representation:
