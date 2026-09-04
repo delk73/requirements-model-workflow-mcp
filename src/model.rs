@@ -94,6 +94,20 @@ pub struct RequirementIndex {
     pub requirements: Vec<Requirement>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TraceLink {
+    pub source_artifact_id: String,
+    pub source_element_id: String,
+    pub relationship: String,
+    pub target_artifact_id: String,
+    pub target_element_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraceabilityIndex {
+    pub links: Vec<TraceLink>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequirementDecompositionIndex {
     pub parents: Vec<RequirementDecomposition>,

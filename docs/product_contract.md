@@ -259,6 +259,20 @@ Requirement decomposition and traceability are separate later workflow stages;
 the requirements artifact contains no parent-child, implementation,
 verification, evidence, or traceability links.
 
+### Traceability
+
+Traceability is a descriptive artifact containing explicit directed links among
+accepted ontology elements and requirements. Links use a managed `## Trace
+Links` Markdown table with source artifact, source element, relationship, target
+artifact, and target element columns. Initial relationship kinds are `refines`,
+`derives_from`, and `traces_to`.
+
+Traceability binds directly to the accepted revisions of every referenced
+ontology or requirements artifact. Links are validated against those exact
+revisions, but source changes only invalidate traceability when it directly
+binds that source. Implementation, verification, execution evidence,
+transitive propagation, and generic graph behavior remain deferred.
+
 ### Requirement Decomposition
 
 Relates parent requirements to more specific requirements without prescribing a
