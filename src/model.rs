@@ -95,6 +95,19 @@ pub struct RequirementIndex {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ImplementationTarget {
+    pub id: String,
+    pub repository_revision: String,
+    pub path: String,
+    pub symbol: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplementationIndex {
+    pub targets: Vec<ImplementationTarget>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraceLink {
     pub source_artifact_id: String,
     pub source_element_id: String,

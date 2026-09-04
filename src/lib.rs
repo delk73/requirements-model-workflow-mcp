@@ -1,5 +1,6 @@
 pub mod digest;
 pub mod markdown_decomposition;
+pub mod markdown_implementation;
 pub mod markdown_ontology;
 pub mod markdown_requirements;
 pub mod markdown_traceability;
