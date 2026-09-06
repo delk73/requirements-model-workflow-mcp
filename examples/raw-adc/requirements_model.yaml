@@ -88,6 +88,15 @@ artifacts:
       line_endings: "lf"
     accepted: null
 
+  raw-adc-execution-evidence:
+    type: "execution_evidence"
+    representation:
+      path: "execution_evidence.md"
+      media_type: "text/markdown"
+      encoding: "utf-8"
+      line_endings: "lf"
+    accepted: null
+
   raw-adc-requirement-decomposition:
     type: "requirement_decomposition"
     representation:

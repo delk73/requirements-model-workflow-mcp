@@ -180,7 +180,7 @@ fn system_story_candidate_is_rejected() {
     };
     assert_eq!(
             store.begin_candidate(identity).unwrap_err(),
-            "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, implementation, verification, and traceability candidates are supported"
+            "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, implementation, verification, execution evidence, and traceability candidates are supported"
         );
 }
 

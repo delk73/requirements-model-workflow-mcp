@@ -298,7 +298,21 @@ other artifact referenced by its links. Reaccepting a verification artifact
 makes directly bound traceability `review_required`; requirements and
 unrelated artifacts remain unchanged. Code changes alone do not change
 workflow state; the operator explicitly updates and reaccepts the verification
-artifact. Execution evidence remains deferred.
+artifact.
+
+### Execution Evidence
+
+An `execution_evidence` artifact represents one execution session. It binds
+exactly one accepted `verification` artifact revision, and each result
+references a `verification.vNNN` target from that exact revision. Outcomes are
+limited to `passed`, `failed`, `error`, and `skipped`. The verification artifact
+is the authoritative resolver; Git is not inspected.
+
+Accepted execution evidence is historical and remains accepted when the bound
+verification artifact is later reaccepted. Accepted execution evidence is
+immutable: reruns create new `execution_evidence` artifacts under new artifact
+IDs rather than revising an accepted session. Output attachments, logs,
+toolchain and environment schemas, and bounded evaluation remain deferred.
 
 ### Requirement Decomposition
 
