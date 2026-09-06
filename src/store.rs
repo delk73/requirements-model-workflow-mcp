@@ -1,6 +1,7 @@
 use crate::{
     digest::{content_digest, revision_handle},
     markdown_decomposition::extract_requirement_decomposition,
+    markdown_execution_evidence::extract_execution_evidence,
     markdown_implementation::extract_implementations,
     markdown_ontology::extract_ontology_elements,
     markdown_requirements::extract_requirements,
@@ -69,7 +70,9 @@ impl ModelStore {
                     if !path.exists() {
                         "absent"
                     } else if self.matches_accepted(&path, accepted)? {
-                        if self.accepted_sources_current(&manifest, accepted)? {
+                        if descriptor.artifact_type == "execution_evidence"
+                            || self.accepted_sources_current(&manifest, accepted)?
+                        {
                             "accepted"
                         } else {
                             "review_required"
@@ -140,6 +143,9 @@ impl ModelStore {
             let Some(bound_source_revision) = dependent_accepted.sources.get(artifact_id) else {
                 continue;
             };
+            if dependent.artifact_type == "execution_evidence" {
+                continue;
+            }
             if bound_source_revision != &accepted_revision {
                 affected_artifacts.push(crate::model::AffectedDownstreamArtifact {
                     artifact_id: dependent_id.clone(),
@@ -217,6 +223,9 @@ impl ModelStore {
             .artifacts
             .get(&identity.artifact_id)
             .ok_or_else(|| "unknown artifact".to_owned())?;
+        if descriptor.artifact_type == "execution_evidence" && descriptor.accepted.is_some() {
+            return Err("accepted execution evidence is immutable; use a new artifact ID".into());
+        }
         if descriptor.artifact_type != "domain_framing"
             && descriptor.artifact_type != "domain_ontology"
             && descriptor.artifact_type != "controlled_vocabulary"
@@ -224,10 +233,11 @@ impl ModelStore {
             && descriptor.artifact_type != "requirement_decomposition"
             && descriptor.artifact_type != "implementation"
             && descriptor.artifact_type != "verification"
+            && descriptor.artifact_type != "execution_evidence"
             && descriptor.artifact_type != "traceability"
         {
             return Err(
-                "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, implementation, verification, and traceability candidates are supported"
+                "only domain framing, domain ontology, controlled vocabulary, requirements, requirement decomposition, implementation, verification, execution evidence, and traceability candidates are supported"
                     .into(),
             );
         }
@@ -265,6 +275,9 @@ impl ModelStore {
         if identity.artifact_type == "traceability" && identity.source_revisions.is_empty() {
             return Err("traceability requires at least one source".into());
         }
+        if identity.artifact_type == "execution_evidence" && identity.source_revisions.len() != 1 {
+            return Err("execution evidence requires exactly one source".into());
+        }
         for (source_id, revision) in &identity.source_revisions {
             let source = manifest
                 .artifacts
@@ -285,6 +298,9 @@ impl ModelStore {
                 }
                 "requirement_decomposition" if source.artifact_type != "requirements" => {
                     return Err("requirement decomposition source must be requirements".into());
+                }
+                "execution_evidence" if source.artifact_type != "verification" => {
+                    return Err("execution evidence source must be verification".into());
                 }
                 "traceability"
                     if source.artifact_type != "domain_ontology"
@@ -345,6 +361,40 @@ impl ModelStore {
             extract_implementations(&body)?;
         } else if identity.artifact_type == "verification" {
             extract_verifications(&body)?;
+        } else if identity.artifact_type == "execution_evidence" {
+            let evidence = extract_execution_evidence(&body)?;
+            let verification_id = identity
+                .source_revisions
+                .keys()
+                .next()
+                .ok_or("execution evidence requires a verification source")?;
+            if evidence.verification_artifact != *verification_id {
+                return Err("verification source binding does not match execution metadata".into());
+            }
+            let manifest = self.manifest()?;
+            let verification =
+                descriptor_for_accepted_source(&manifest, verification_id, "verification")?;
+            let accepted = verification.accepted.as_ref().unwrap();
+            if evidence.verification_revision != accepted.revision {
+                return Err("stale or incorrect verification source revision".into());
+            }
+            let path = self.artifact_path(&verification.representation.path)?;
+            let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+            verify_content(&bytes, &accepted.content)?;
+            let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
+            let targets = extract_verifications(&text)?;
+            for result in evidence.results {
+                if !targets
+                    .targets
+                    .iter()
+                    .any(|target| target.id == result.verification_id)
+                {
+                    return Err(format!(
+                        "unresolved verification ID: {}",
+                        result.verification_id
+                    ));
+                }
+            }
         } else if identity.artifact_type == "controlled_vocabulary" {
             let ontology_id = identity
                 .source_revisions

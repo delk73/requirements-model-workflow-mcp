@@ -120,6 +120,22 @@ pub struct VerificationIndex {
     pub targets: Vec<VerificationTarget>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionEvidenceResult {
+    pub verification_id: String,
+    pub outcome: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionEvidenceIndex {
+    pub verification_artifact: String,
+    pub verification_revision: String,
+    pub repository_revision: String,
+    pub occurred_at: String,
+    pub context: String,
+    pub results: Vec<ExecutionEvidenceResult>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraceLink {
     pub source_artifact_id: String,
