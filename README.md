@@ -60,4 +60,3 @@ RESULT: PASS
 The run operates on an isolated temporary copy of
 [examples/raw-adc](examples/raw-adc/) and never modifies the checked-in
 example.
-
