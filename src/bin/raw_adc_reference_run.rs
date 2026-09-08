@@ -92,6 +92,12 @@ fn execute_scenario(client: &mut Client, model: TempModel) -> Result<Report, Str
 
     let state = client.call_tool("inspect_model_state", json!({}))?;
     let model_id = required_str(&state, "model_id")?.to_owned();
+    let story_state = artifact_state(&state, "raw-adc-story")?;
+    if story_state != "accepted" {
+        return Err(format!(
+            "raw-adc-story state is {story_state}; expected accepted"
+        ));
+    }
     // The checked-in Raw ADC example already carries an accepted controlled
     // vocabulary; only requirements and requirement decomposition are drafts.
     let vocabulary_rev = accepted_revision(&state, VOCABULARY)?;
