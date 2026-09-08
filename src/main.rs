@@ -155,6 +155,19 @@ fn tools() -> Value {
                 "required": ["artifact_id", "candidate_revision"],
                 "additionalProperties": false
             }
+        },
+        {
+            "name": "withdraw_candidate",
+            "description": "Withdraw one exact staged candidate revision without changing its review records, accepted artifacts, or manifest; withdrawal remains available when the candidate source binding is stale.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "artifact_id": {"type": "string"},
+                    "candidate_revision": {"type": "string"}
+                },
+                "required": ["artifact_id", "candidate_revision"],
+                "additionalProperties": false
+            }
         }
     ]})
 }
@@ -241,6 +254,11 @@ fn dispatch(store: &ModelStore, request: &JsonRpcRequest) -> Result<Value, Strin
                         .map_err(|error| error.to_string())
                     }
                     "accept_candidate" => serde_json::to_value(store.accept_candidate(
+                        required_string(&args, "artifact_id")?,
+                        required_string(&args, "candidate_revision")?,
+                    )?)
+                    .map_err(|error| error.to_string()),
+                    "withdraw_candidate" => serde_json::to_value(store.withdraw_candidate(
                         required_string(&args, "artifact_id")?,
                         required_string(&args, "candidate_revision")?,
                     )?)

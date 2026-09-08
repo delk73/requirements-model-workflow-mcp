@@ -11,7 +11,7 @@ use crate::{
     model::{
         AcceptedArtifactRead, AcceptedRevision, ArtifactState, CandidateDecision,
         CandidateIdentity, CandidateReviewRequest, ContentDescriptor, Manifest, ModelState,
-        StagedCandidate,
+        StagedCandidate, WithdrawnCandidate,
     },
 };
 use fs2::FileExt;
@@ -902,6 +902,23 @@ impl ModelStore {
         Ok(self.complete_acceptance_after_manifest(accepted, &staged_path, artifact_id))
     }
 
+    pub fn withdraw_candidate(
+        &self,
+        artifact_id: &str,
+        candidate_revision: &str,
+    ) -> Result<WithdrawnCandidate, String> {
+        let _lock = self.acquire_acceptance_lock()?;
+        self.recover_acceptance_locked()?;
+        let candidate =
+            self.matching_staged_candidate_for_withdrawal(artifact_id, candidate_revision)?;
+        let staged_path = self.staged_path(artifact_id)?;
+        fs::remove_file(staged_path).map_err(|error| error.to_string())?;
+        Ok(WithdrawnCandidate {
+            artifact_id: candidate.identity.artifact_id,
+            candidate_revision: candidate.revision,
+        })
+    }
+
     fn manifest(&self) -> Result<Manifest, String> {
         serde_yaml::from_slice(&fs::read(&self.manifest_path).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())
@@ -1106,6 +1123,11 @@ impl ModelStore {
         Ok(self.staged_dir()?.join(format!("{artifact_id}.json")))
     }
     fn validated_staged_candidate(&self, artifact_id: &str) -> Result<StagedCandidate, String> {
+        let candidate = self.load_staged_candidate(artifact_id)?;
+        self.validate_candidate(candidate.identity.clone())?;
+        Ok(candidate)
+    }
+    fn load_staged_candidate(&self, artifact_id: &str) -> Result<StagedCandidate, String> {
         validate_artifact_id(artifact_id)?;
         let candidate: StagedCandidate =
             read_json(&self.staged_path(artifact_id)?, "missing staged candidate")?;
@@ -1130,7 +1152,6 @@ impl ModelStore {
         if candidate.revision != revision {
             return Err("staged candidate revision mismatch".into());
         }
-        self.validate_candidate(candidate.identity.clone())?;
         Ok(candidate)
     }
     fn matching_staged_candidate(
@@ -1139,6 +1160,17 @@ impl ModelStore {
         revision: &str,
     ) -> Result<StagedCandidate, String> {
         let candidate = self.validated_staged_candidate(artifact_id)?;
+        if candidate.revision != revision {
+            return Err("candidate revision does not match staged candidate".into());
+        }
+        Ok(candidate)
+    }
+    fn matching_staged_candidate_for_withdrawal(
+        &self,
+        artifact_id: &str,
+        revision: &str,
+    ) -> Result<StagedCandidate, String> {
+        let candidate = self.load_staged_candidate(artifact_id)?;
         if candidate.revision != revision {
             return Err("candidate revision does not match staged candidate".into());
         }

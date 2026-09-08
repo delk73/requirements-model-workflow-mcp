@@ -251,6 +251,12 @@ pub struct StagedCandidateView {
     pub end_line: Option<usize>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct WithdrawnCandidate {
+    pub artifact_id: String,
+    pub candidate_revision: String,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CandidateReviewRequest {
     pub artifact_id: String,

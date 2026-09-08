@@ -1434,6 +1434,107 @@ fn stale_source_revision_prevents_review() {
 }
 
 #[test]
+fn stale_reviewed_candidate_can_be_withdrawn_without_changing_accepted_artifacts() {
+    let (dir, store, story_revision, prior_framing_revision) = accepted_target_fixture();
+    let ontology_revision = store
+        .inspect_model_state()
+        .unwrap()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+        .unwrap()
+        .descriptor
+        .accepted
+        .unwrap()
+        .revision;
+    let ontology_candidate = store
+        .stage_candidate(
+            ontology_identity(ontology_revision, prior_framing_revision.clone()),
+            ONTOLOGY_BODY,
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-ontology", &ontology_candidate.revision)
+        .unwrap();
+
+    let framing_candidate = store
+        .stage_candidate(
+            CandidateIdentity {
+                model_id: "raw-adc".into(),
+                artifact_id: "raw-adc-domain-framing".into(),
+                artifact_type: "domain_framing".into(),
+                target_revision: Some(prior_framing_revision),
+                source_revisions: BTreeMap::from([("raw-adc-story".into(), story_revision)]),
+            },
+            "# Revised framing",
+        )
+        .unwrap();
+    store
+        .begin_candidate_review("raw-adc-domain-framing", &framing_candidate.revision)
+        .unwrap();
+    store
+        .record_candidate_decision(
+            "raw-adc-domain-framing",
+            &framing_candidate.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .unwrap();
+    store
+        .accept_candidate("raw-adc-domain-framing", &framing_candidate.revision)
+        .unwrap();
+
+    let manifest = fs::read(dir.join("requirements_model.yaml")).unwrap();
+    let accepted_framing = fs::read(dir.join("domain_framing.md")).unwrap();
+    let request_path = dir
+        .join(".rmwm/reviews/raw-adc-domain-ontology")
+        .join(format!("{}.request.json", ontology_candidate.revision));
+    let request = fs::read(&request_path).unwrap();
+    assert!(store
+        .record_candidate_decision(
+            "raw-adc-domain-ontology",
+            &ontology_candidate.revision,
+            "approved",
+            "reviewer".into(),
+            None,
+        )
+        .is_err());
+    assert!(store
+        .accept_candidate("raw-adc-domain-ontology", &ontology_candidate.revision)
+        .is_err());
+
+    let withdrawn = store
+        .withdraw_candidate("raw-adc-domain-ontology", &ontology_candidate.revision)
+        .unwrap();
+    assert_eq!(withdrawn.candidate_revision, ontology_candidate.revision);
+    assert!(!dir
+        .join(".rmwm/staged/raw-adc-domain-ontology.json")
+        .exists());
+    assert_eq!(fs::read(request_path).unwrap(), request);
+    assert_eq!(
+        fs::read(dir.join("requirements_model.yaml")).unwrap(),
+        manifest
+    );
+    assert_eq!(
+        fs::read(dir.join("domain_framing.md")).unwrap(),
+        accepted_framing
+    );
+    assert_eq!(
+        store
+            .inspect_model_state()
+            .unwrap()
+            .artifacts
+            .into_iter()
+            .find(|artifact| artifact.artifact_id == "raw-adc-domain-ontology")
+            .unwrap()
+            .state,
+        "review_required"
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn modified_source_file_prevents_decision() {
     let (dir, store, revision) = fixture();
     let staged = stage(&store, revision);

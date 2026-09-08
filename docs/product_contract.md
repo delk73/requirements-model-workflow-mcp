@@ -353,8 +353,12 @@ Generation and commit are separate operations.
 A staged candidate is bound to the applicable source and model revisions used to
 prepare it. A stale candidate cannot be committed.
 
-A staged candidate may be approved, rejected, replaced, or withdrawn. Only an
-approved and committed candidate becomes part of the accepted model. A
+A staged candidate may be approved, rejected, replaced, or withdrawn. Withdrawal
+identifies the exact artifact ID and candidate revision, removes only the staged
+candidate, and preserves its review request and any existing review records. It
+is permitted even after a bound source revision becomes stale. Withdrawal does
+not change accepted artifact bytes, accepted descriptors, or the manifest. Only
+an approved and committed candidate becomes part of the accepted model. A
 replacement identifies the candidate it supersedes.
 
 Earlier model elements may be revised. Dependent work is marked for review
