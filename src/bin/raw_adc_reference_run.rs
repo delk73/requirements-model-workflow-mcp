@@ -70,7 +70,11 @@ fn print_report(report: &Report) {
 }
 
 fn run() -> Result<Report, String> {
-    let model = TempModel::create()?;
+    run_from_source(&default_raw_adc_source())
+}
+
+fn run_from_source(source_root: &Path) -> Result<Report, String> {
+    let model = TempModel::create_from(source_root)?;
     let server_exe = resolve_server_binary()?;
     let mut client = Client::spawn(&server_exe, &model.path)?;
     match execute_scenario(&mut client, model) {
@@ -83,6 +87,10 @@ fn run() -> Result<Report, String> {
             Err(error)
         }
     }
+}
+
+fn default_raw_adc_source() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc")
 }
 
 fn execute_scenario(client: &mut Client, model: TempModel) -> Result<Report, String> {
@@ -475,8 +483,7 @@ struct TempModel {
 }
 
 impl TempModel {
-    fn create() -> Result<Self, String> {
-        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/raw-adc");
+    fn create_from(source: &Path) -> Result<Self, String> {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|error| error.to_string())?
@@ -504,6 +511,31 @@ impl TempModel {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_modified_accepted_story_in_temporary_fixture() {
+        let source = TempModel::create_from(&default_raw_adc_source()).unwrap();
+        let story_path = source.path.join("story.md");
+        let mut story = fs::read_to_string(&story_path).unwrap();
+        story.push_str("\nTemporary mutation for integrity testing.\n");
+        fs::write(&story_path, story).unwrap();
+
+        let error = match run_from_source(&source.path) {
+            Ok(_) => panic!("tampered accepted story unexpectedly passed"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.contains("raw-adc-story state is modified; expected accepted"),
+            "unexpected error: {error}"
+        );
+        assert!(!error.contains("Raw ADC MCP reference run"));
+    }
+}
+
 impl Drop for TempModel {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.path);
@@ -518,6 +550,11 @@ fn resolve_server_binary() -> Result<PathBuf, String> {
     let dir = current_exe
         .parent()
         .ok_or("current executable has no parent directory")?;
+    let dir = if dir.file_name().and_then(|name| name.to_str()) == Some("deps") {
+        dir.parent().ok_or("Cargo deps directory has no parent")?
+    } else {
+        dir
+    };
     let exe_name = if cfg!(windows) {
         "requirements-model-workflow-mcp.exe"
     } else {
