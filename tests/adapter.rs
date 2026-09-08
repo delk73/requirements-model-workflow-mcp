@@ -83,7 +83,7 @@ fn stdio_adapter_exercises_all_slice_one_operations() {
     assert!(instructions.contains("accept an approved candidate"));
 
     let tools = responses[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 9);
+    assert_eq!(tools.len(), 10);
     for tool in tools {
         assert!(!tool["description"].as_str().unwrap().is_empty());
         let schema = &tool["inputSchema"];

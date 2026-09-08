@@ -97,7 +97,9 @@ The workflow exposes the following conceptual public capabilities:
 These dispositions remain distinct:
 
 * rejection records a negative decision
-* withdrawal removes a candidate from further consideration
+* withdrawal removes an exact candidate from further consideration, including
+   when its source binding is stale, while preserving review records and accepted
+   model state
 * replacement creates a new candidate that identifies the candidate it supersedes
 * approval identifies one exact candidate as eligible for acceptance
 * acceptance changes accepted model state.
