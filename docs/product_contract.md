@@ -355,11 +355,11 @@ prepare it. A stale candidate cannot be committed.
 
 A staged candidate may be approved, rejected, replaced, or withdrawn. Withdrawal
 identifies the exact artifact ID and candidate revision, removes only the staged
-candidate, and preserves its review request and any existing review records. It
-is permitted even after a bound source revision becomes stale. Withdrawal does
-not change accepted artifact bytes, accepted descriptors, or the manifest. Only
-an approved and committed candidate becomes part of the accepted model. A
-replacement identifies the candidate it supersedes.
+candidate, and preserves its review request and any existing review records.
+Withdrawal remains available when one or more bound source revisions are stale.
+Withdrawal does not change accepted artifact bytes, accepted descriptors, or the
+manifest. Only an approved and committed candidate becomes part of the accepted
+model. A replacement identifies the candidate it supersedes.
 
 Earlier model elements may be revised. Dependent work is marked for review
 rather than silently deleted or rewritten.
