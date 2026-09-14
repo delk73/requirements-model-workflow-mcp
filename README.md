@@ -12,6 +12,7 @@ Status: Initial draft
 ## Project Definition
 
 * [Product contract](docs/product_contract.md)
+* [Architecture](docs/architecture.md)
 * [Raw-ADC capture example](examples/raw-adc/)
 
 ## Workflow
