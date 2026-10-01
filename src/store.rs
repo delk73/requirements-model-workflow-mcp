@@ -722,6 +722,7 @@ impl ModelStore {
             revision,
             supersedes,
             state: "staged".into(),
+            warnings: Vec::new(),
         };
         self.prepare_staged_dir()?;
         let staged_path = self.staged_path(&staged.identity.artifact_id)?;
@@ -763,6 +764,7 @@ impl ModelStore {
             revision: candidate.revision,
             supersedes: candidate.supersedes,
             state: candidate.state,
+            warnings: candidate.warnings,
             total_lines,
             start_line,
             end_line,
@@ -1642,6 +1644,7 @@ fn normalize_body(body: &str) -> Result<String, String> {
 
 #[derive(Debug, Deserialize)]
 pub struct CandidateRequest {
+    pub session_id: Option<String>,
     pub model_id: String,
     pub artifact_id: String,
     pub artifact_type: String,
@@ -1653,6 +1656,7 @@ pub struct CandidateRequest {
 impl From<CandidateRequest> for CandidateIdentity {
     fn from(request: CandidateRequest) -> Self {
         Self {
+            session_id: request.session_id,
             model_id: request.model_id,
             artifact_id: request.artifact_id,
             artifact_type: request.artifact_type,

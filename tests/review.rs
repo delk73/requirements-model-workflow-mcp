@@ -92,6 +92,7 @@ fn accepted_target_fixture() -> (PathBuf, ModelStore, String, String) {
 
 fn identity(story_revision: String) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -111,6 +112,7 @@ fn stage(
 
 fn ontology_identity(target_revision: String, framing_revision: String) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-ontology".into(),
         artifact_type: "domain_ontology".into(),
@@ -453,6 +455,7 @@ fn revised_framing_can_be_followed_by_ontology_reacceptance() {
     let framing_candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -720,6 +723,7 @@ fn approval_of_revision_preserves_accepted_target_and_manifest() {
     let staged = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -773,6 +777,7 @@ fn approved_candidate_is_accepted_without_changing_ontology() {
     let candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -958,6 +963,7 @@ fn stale_accepted_artifact_prevents_acceptance() {
     let candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -1045,6 +1051,7 @@ fn stale_direct_dependent_is_reported_with_both_revisions() {
     let candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -1172,6 +1179,7 @@ fn candidate_with_superseded_bound_source_is_stale_during_inspection() {
     let candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -1239,6 +1247,7 @@ fn rejected_candidate_is_replaced_without_losing_review_history() {
     let candidate_a = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -1272,6 +1281,7 @@ fn rejected_candidate_is_replaced_without_losing_review_history() {
     let candidate_b = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),
@@ -1460,6 +1470,7 @@ fn stale_reviewed_candidate_can_be_withdrawn_without_changing_accepted_artifacts
     let framing_candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-framing".into(),
                 artifact_type: "domain_framing".into(),

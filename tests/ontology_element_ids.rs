@@ -44,6 +44,7 @@ fn fixture() -> (PathBuf, ModelStore, CandidateIdentity) {
             .clone()
     };
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-ontology".into(),
         artifact_type: "domain_ontology".into(),

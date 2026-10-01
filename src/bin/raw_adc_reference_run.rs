@@ -223,6 +223,7 @@ fn accept_candidate_flow(
         .map(|(id, revision)| ((*id).to_owned(), json!(*revision)))
         .collect();
     let identity = json!({
+        "session_id": Value::Null,
         "model_id": model_id,
         "artifact_id": artifact_id,
         "artifact_type": artifact_type,

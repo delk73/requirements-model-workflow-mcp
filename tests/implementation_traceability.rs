@@ -67,6 +67,7 @@ fn prepare() -> (PathBuf, ModelStore, String, String) {
     accept(
         &store,
         CandidateIdentity {
+            session_id: None,
             model_id: "raw-adc".into(),
             artifact_id: "raw-adc-requirements".into(),
             artifact_type: "requirements".into(),
@@ -85,6 +86,7 @@ fn prepare() -> (PathBuf, ModelStore, String, String) {
 
 fn implementation_identity() -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-implementation".into(),
         artifact_type: "implementation".into(),
@@ -99,6 +101,7 @@ fn trace_identity(
     implementation: String,
 ) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-traceability-test".into(),
         artifact_type: "traceability".into(),

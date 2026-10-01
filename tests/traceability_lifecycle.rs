@@ -63,6 +63,7 @@ fn prepare() -> (PathBuf, ModelStore, String, String) {
     accept(
         &store,
         CandidateIdentity {
+            session_id: None,
             model_id: "raw-adc".into(),
             artifact_id: "raw-adc-requirements".into(),
             artifact_type: "requirements".into(),
@@ -80,6 +81,7 @@ fn prepare() -> (PathBuf, ModelStore, String, String) {
 }
 fn trace_identity(ontology: String, requirements: String) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "traceability".into(),
         artifact_type: "traceability".into(),
@@ -198,6 +200,7 @@ fn direct_reacceptance_marks_trace_only() {
     accept(
         &store,
         CandidateIdentity {
+            session_id: None,
             model_id: "raw-adc".into(),
             artifact_id: "raw-adc-domain-ontology".into(),
             artifact_type: "domain_ontology".into(),

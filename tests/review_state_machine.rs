@@ -193,6 +193,7 @@ impl Fixture {
     }
     fn identity(&self, target_revision: Option<String>) -> CandidateIdentity {
         CandidateIdentity {
+            session_id: None,
             model_id: "raw-adc".into(),
             artifact_id: ARTIFACT.into(),
             artifact_type: "domain_framing".into(),
@@ -566,6 +567,7 @@ fn stale_source_revision_rejects_review_of_staged_dependent() {
     let ontology_candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-domain-ontology".into(),
                 artifact_type: "domain_ontology".into(),
@@ -581,6 +583,7 @@ fn stale_source_revision_rejects_review_of_staged_dependent() {
     let framing_candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: ARTIFACT.into(),
                 artifact_type: "domain_framing".into(),
@@ -658,6 +661,7 @@ fn accepted_reacceptance_reports_direct_downstream_impact() {
     let candidate = store
         .stage_candidate(
             CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: ARTIFACT.into(),
                 artifact_type: "domain_framing".into(),

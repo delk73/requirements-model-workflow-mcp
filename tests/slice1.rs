@@ -66,6 +66,7 @@ fn raw_adc_story_reaches_staged_boundary_without_mutating_story() {
         .revision
         .clone();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -89,6 +90,7 @@ fn raw_adc_story_reaches_staged_boundary_without_mutating_story() {
 fn stale_source_is_rejected() {
     let (_dir, store, _story) = fixture();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -108,6 +110,7 @@ fn stale_source_is_rejected() {
 fn empty_source_bindings_are_rejected() {
     let (_dir, store, _story) = fixture();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -124,6 +127,7 @@ fn empty_source_bindings_are_rejected() {
 fn multiple_sources_are_rejected_for_domain_framing() {
     let (_dir, store, _story) = fixture();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -156,6 +160,7 @@ fn wrong_type_source_is_rejected_for_domain_framing() {
         .revision
         .clone();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -172,6 +177,7 @@ fn wrong_type_source_is_rejected_for_domain_framing() {
 fn system_story_candidate_is_rejected() {
     let (_dir, store, _story) = fixture();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-story".into(),
         artifact_type: "system_story".into(),
@@ -188,6 +194,7 @@ fn system_story_candidate_is_rejected() {
 fn domain_ontology_candidate_requires_current_bindings() {
     let (_dir, store, _story) = fixture();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-ontology".into(),
         artifact_type: "domain_ontology".into(),
@@ -218,6 +225,7 @@ fn revised_story_revision_can_bind_new_framing_candidate() {
     manifest = manifest.replace("size: 532", &format!("size: {}", revised.len()));
     fs::write(dir.join("requirements_model.yaml"), manifest).unwrap();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -235,6 +243,7 @@ fn revised_story_revision_can_bind_new_framing_candidate() {
 fn unsafe_artifact_id_cannot_escape_staged_directory() {
     let (_dir, store, _story) = fixture();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "../escape".into(),
         artifact_type: "domain_framing".into(),
@@ -257,6 +266,7 @@ fn symlinked_staging_directory_cannot_escape_model_root() {
     fs::create_dir_all(dir.join(".rmwm")).unwrap();
     symlink(&outside, dir.join(".rmwm/staged")).unwrap();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -299,6 +309,7 @@ fn symlinked_rmwm_directory_cannot_escape_model_root() {
         .clone();
     symlink(&outside, dir.join(".rmwm")).unwrap();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -336,6 +347,7 @@ fn missing_staging_directories_are_created_inside_model_root() {
         .revision
         .clone();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -367,6 +379,7 @@ fn existing_staged_candidate_is_not_overwritten() {
         .revision
         .clone();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -409,6 +422,7 @@ fn modified_source_file_is_rejected_even_when_manifest_revision_is_unchanged() {
     )
     .unwrap();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -460,6 +474,7 @@ fn candidate_frontmatter_and_line_endings_are_controlled() {
         .revision
         .clone();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -495,6 +510,7 @@ fn candidate_has_one_blank_line_between_managed_frontmatter_and_body() {
         .revision
         .clone();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),
@@ -528,6 +544,7 @@ fn candidate_frontmatter_input_is_rejected_without_staging() {
         .revision
         .clone();
     let identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-domain-framing".into(),
         artifact_type: "domain_framing".into(),

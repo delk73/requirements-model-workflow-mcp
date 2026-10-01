@@ -16,6 +16,7 @@ fn candidate_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
+            "session_id": {"type": ["string", "null"]},
             "model_id": {"type": "string"},
             "artifact_id": {"type": "string"},
             "artifact_type": {"type": "string"},
@@ -27,6 +28,7 @@ fn candidate_schema() -> Value {
             }
         },
         "required": [
+            "session_id",
             "model_id",
             "artifact_id",
             "artifact_type",
@@ -280,6 +282,7 @@ fn staged_candidate_view(candidate: StagedCandidate) -> Result<StagedCandidateVi
         revision,
         supersedes,
         state,
+        warnings,
     } = candidate;
     let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
     Ok(StagedCandidateView {
@@ -289,6 +292,7 @@ fn staged_candidate_view(candidate: StagedCandidate) -> Result<StagedCandidateVi
         revision,
         supersedes,
         state,
+        warnings,
         total_lines: None,
         start_line: None,
         end_line: None,
@@ -456,6 +460,7 @@ mod tests {
         )
         .is_ok());
         let identity = CandidateIdentity {
+            session_id: None,
             model_id: "raw-adc".into(),
             artifact_id: "raw-adc-domain-framing".into(),
             artifact_type: "domain_framing".into(),
@@ -519,6 +524,7 @@ mod tests {
         assert!(accepted["structuredContent"].get("bytes").is_none());
 
         let identity = CandidateIdentity {
+            session_id: None,
             model_id: "raw-adc".into(),
             artifact_id: "raw-adc-domain-framing".into(),
             artifact_type: "domain_framing".into(),

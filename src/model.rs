@@ -216,6 +216,7 @@ pub struct AffectedDownstreamArtifactsReport {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CandidateIdentity {
+    pub session_id: Option<String>,
     pub model_id: String,
     pub artifact_id: String,
     pub artifact_type: String,
@@ -232,6 +233,7 @@ pub struct StagedCandidate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supersedes: Option<String>,
     pub state: String,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -243,6 +245,7 @@ pub struct StagedCandidateView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supersedes: Option<String>,
     pub state: String,
+    pub warnings: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_lines: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]

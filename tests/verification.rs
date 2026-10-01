@@ -101,6 +101,7 @@ fn accept(store: &ModelStore, identity: CandidateIdentity, body: &str) {
 
 fn requirements_identity(vocabulary: String) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-requirements".into(),
         artifact_type: "requirements".into(),
@@ -111,6 +112,7 @@ fn requirements_identity(vocabulary: String) -> CandidateIdentity {
 
 fn verification_identity() -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-verification-test".into(),
         artifact_type: "verification".into(),
@@ -121,6 +123,7 @@ fn verification_identity() -> CandidateIdentity {
 
 fn trace_identity(requirements: String, verification: String) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-traceability-test".into(),
         artifact_type: "traceability".into(),

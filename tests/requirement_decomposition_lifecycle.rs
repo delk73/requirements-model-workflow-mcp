@@ -61,6 +61,7 @@ fn identity(
     source: (&str, String),
 ) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: id.into(),
         artifact_type: artifact_type.into(),

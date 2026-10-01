@@ -82,6 +82,7 @@ fn vocabulary_identity(
     ontology_revision: String,
 ) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: VOCABULARY_ARTIFACT.into(),
         artifact_type: "controlled_vocabulary".into(),
@@ -92,6 +93,7 @@ fn vocabulary_identity(
 
 fn ontology_identity(target_revision: String, framing_revision: String) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: ONTOLOGY_ARTIFACT.into(),
         artifact_type: "domain_ontology".into(),

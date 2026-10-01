@@ -76,6 +76,7 @@ fn setup() -> (PathBuf, ModelStore) {
 
 fn identity(id: &str, verification: &str) -> CandidateIdentity {
     CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: id.into(),
         artifact_type: "execution_evidence".into(),
@@ -107,6 +108,7 @@ fn verification(dir: &PathBuf, store: &ModelStore) -> String {
         .map(|accepted| accepted.revision)
         .unwrap_or_else(|| {
             let identity = CandidateIdentity {
+                session_id: None,
                 model_id: "raw-adc".into(),
                 artifact_id: "raw-adc-verification".into(),
                 artifact_type: "verification".into(),
@@ -194,6 +196,7 @@ fn lifecycle_binds_exact_revision_and_preserves_historical_sessions() {
     assert!(drift_error.contains("accepted artifact"), "{drift_error}");
     let revised_verification = "# Verification Targets\n\n## Verification Targets\n\n| ID | Repository revision | Path | Test |\n| --- | --- | --- | --- |\n| `verification.v001` | 033f71de02d73f68ab44fb490a4ea16ba95169de | `tests/execution_evidence.rs` | `lifecycle_binds_exact_revision_and_preserves_historical_sessions` |\n";
     let verification_identity = CandidateIdentity {
+        session_id: None,
         model_id: "raw-adc".into(),
         artifact_id: "raw-adc-verification".into(),
         artifact_type: "verification".into(),

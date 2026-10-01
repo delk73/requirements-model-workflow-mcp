@@ -59,6 +59,7 @@ Card rules: plain English, no invented jargon, never raw tool output, never the 
 
 **D7. Work Sessions isolate informal cascading drafts from formal review gates.** Review during the cascade phase is strictly informal and diagnostic. Formal review mechanics (strict validation, approval records, and state locks) are forbidden during the cascade and occur exclusively post-cascade when a session draft is explicitly promoted to a formal staged candidate.
 
+
 ## 3. Diagrams
 
 The complete responsibility boundary is repeated here so the later diagrams can be reviewed against the same lane model.
@@ -134,7 +135,7 @@ The sequence below is the implementation backlog for later phases. Each item nam
 4. **Phase 1, reviewer identity change if required — server and contract lanes.** Add the smallest identity representation only if the reviewer-identity probe requires it.
    **Acceptance criterion:** The probe outcome explicitly justifies either no change or the implemented identity behavior.
 
-10. **Phase 1, Work Session Sandboxing — server and contract lanes.** Implement `session_id` on `CandidateIdentity` and Diagnostic validation mode in `ModelStore`.
+10. **Phase 1, Work Session Sandboxing — server and contract lanes.** Implement `session_id` on `CandidateIdentity`, preserve its optional provenance through staged candidates and views, and expose diagnostic warnings without changing candidate bytes or revision identity.
    **Acceptance criterion:** Session drafts run under `ValidationMode::Diagnostic` without creating formal review records. Formal review endpoints (`begin_candidate_review`, `record_candidate_decision`) reject session candidates and require a promoted, strictly validated candidate.
 
 ### Runbook changes
